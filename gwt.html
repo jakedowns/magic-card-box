@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Given When Then</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- <script src="https://cdn.jsdelivr.net/npm/gherkin/dist/src/index.js" type="module"></script> -->
+    <style>
+        body, html { background: #333; color: white; }
+        h1,h2,h3,h4,h5,h6,p,div {
+            color: white;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        h1 {
+            font-size: 20px; font-weight: bold;
+        }
+        body, html { margin: 0; padding: 0; }
+    </style>
+    <script type="text/javascript">
+        window.state = {
+            features: {},
+            scenarios: {},
+            action_words: []
+        }
+        class Feature {
+            constructor(name){
+                this.name = name
+            }
+        }
+        class Scenario {
+            constructor(name){
+                this.name = name
+                this.feature_id = null; //getContextFeatureID()
+            }
+            assignToFeature(feature_id){
+                this.feature_id = null;
+            }
+        }
+        class Parser {
+            constructor(){
+                // this._parser = new Gherkin.Parser();
+            }
+            parse(input){
+                // return this._parser.parse(input);
+            }
+        }
+        let parser;
+        document.addEventListener("DOMContentLoaded", () => {
+            parser = new Parser;
+            let doc = parser.parse(`Feature: Example feature
+  Scenario: An example scenario
+    Given I have a configured environment`)
+            console.log({doc})
+        });
+    </script>
+    <style>
+        .card {
+            width: 800px;
+            height: 400px;
+            margin: 0 auto;
+            display: block;
+            border: 3px solid black;
+            border-radius: 15px;
+            box-shadow: 3px 3px 3px rgba(0,0,0,0.4);
+            padding: 30px;
+            margin-top: 100px;
+            background-color: #222;
+            color: white;
+        }
+        .card.passing {
+            background-color: darkgreen;
+            border-color: green;
+        }
+        .step-type {
+            font-weight: bold;
+            /* border-bottom: 3px solid black; */
+            width: 150px;
+            display:inline-block;
+            border-right: 1px solid black;
+            padding-right: 10px;
+            text-align: right;
+        }
+        .givens, .whens, .thens {
+            margin-top: 30px;
+        }
+        .given .step-type {
+            color: lightskyblue;
+        }
+        .when .step-type {
+            color: plum;
+        }
+        .then .step-type {
+            color: peachpuff;
+        }
+    </style>
+</head>
+<body>
+    <div class="scenario-card card passing">
+        <div class="mb-8"><strong class="step-type">Feature</strong> Watched Lots</div>
+        <div><strong class="step-type">Scenario</strong> Logged out User attempts to watch a lot</div>
+        <!-- <div>Given</div> -->
+            <div class="givens">
+                <div class="given"><strong class="step-type">Given</strong> I am logged out</div>
+                <div class="given"><strong class="step-type">And</strong> I am on the test presale lot 100 page</div>
+            </div>
+        <!-- <div>When</div> -->
+            <div class="whens">
+                <div class="when"><strong class="step-type">When</strong> I click on the unwatched heart to watch the lot</div>
+            </div>
+        <!-- <div>Then</div> -->
+            <div class="thens">
+                <div class="then"><strong class="step-type">Then</strong> I am prompted to log in</div>
+            </div>
+    </div>
+</body>
+</html>
