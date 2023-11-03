@@ -1,58 +1,356 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>D3 Tree Example</title>
-<script src="https://d3js.org/d3.v6.min.js"></script>
-<style>
-  .node circle { fill: #fff; stroke: steelblue; stroke-width: 3px; }
-  .node text { font: 12px sans-serif; }
-  .link { fill: none; stroke: #ccc; stroke-width: 2px; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script type="text/javascript">
+        const data = {
+            name: "Tests",
+            children: [
+                {
+                    name: "User Accounts",
+                    children: [
+                        {
+                            name: "Scenario: User Registers for a new Account",
+                            children: [{ name: "Given" }, { name: "When" }, { name: "Then" }]
+                        },
+                        {
+                            name: "Scenario: User Logs In",
+                            children: [{ name: "Given" }, { name: "When" }, { name: "Then" }]
+                        },
+                        {
+                            name: "Scenario: User Logs Out",
+                            children: [{ name: "Given" }, { name: "When" }, { name: "Then" }]
+                        },
+                    ]
+                },
+                {
+                    name: "Watched Lots",
+                    children: [
+                        {
+                            name: "Scenario: Logged Out User Watches a Lot",
+                            children: [
+                                { name: "Given I am logged out", type: 'G' }, 
+                                { name: 'And I am lot 100 page', type: 'G' },
+                                { name: "When I try to watch a lot" }, 
+                                { name: "Then I am prompted to login " }]
+                        },
+                        {
+                            name: "Scenario: Logged In User Watches a Lot",
+                            children: [{ name: "Given" }, { name: "When" }, { name: "Then" }]
+                        },
+                        {
+                            name: "Scenario: Logged In User Un-Watches a Lot",
+                            children: [{ name: "Given" }, { name: "When" }, { name: "Then" }]
+                        },
+                    ]
+                }
+            ]
+        };
+
+    </script>
+    <script type="text/javascript">
+        const duration = 500;
+        let svg, treeLayout, rootNode;
+
+        // Define the zoom behavior
+        const zoom = d3.zoom()
+            .scaleExtent([0.1, 4]) // Limit the scale to between 0.1x and 4x
+            .on("zoom", zoomed);
+
+        
+        function init() {
+            // Init SVG
+            svg = d3
+                .select("#tree-container")
+                .append("svg")
+                .attr("width", window.innerWidth)
+                .attr("height", window.innerHeight)
+
+            // Create a 'g' element that will hold all of the drawable elements and apply the zoom behavior
+            let rootG = svg.append("g");
+
+            // Apply the zoom behavior to the SVG element
+            svg.call(zoom);
+
+            // Create a tree layout
+            treeLayout = d3.tree().size([window.innerWidth, window.innerHeight]);
+
+            // Create a root node for the tree
+            rootNode = d3.hierarchy(data);
+
+            // Stash the old positions for transition.
+            rootNode.eachBefore(d => {
+                d.x0 = d.x;
+                d.y0 = d.y;
+            });
+
+            update(rootNode);
+        }
+
+        function drawTree() {
+            // Destroy any existing SVG?
+            // Remove any existing SVG elements
+            // document.querySelector('#tree-container svg').remove();
+
+            // svg = d3
+            //     .select("#tree-container")
+            //     .append("svg")
+            //     .attr("width", window.innerWidth)
+            //     .attr("height", window.innerHeight)
+
+            // Resize
+            treeLayout.size([window.innerWidth, window.innerHeight])
+
+            // Assign coordinates to each node in the tree
+            treeLayout(rootNode);
+
+            // Create links between nodes
+            svg
+                .selectAll(".link")
+                .data(rootNode.links())
+                .enter()
+                .append("path")
+                .attr("class", "link")
+                .attr("d", d3.linkHorizontal().x(d => d.y).y(d => d.x));
+
+            // Create nodes
+            const nodes = svg
+                .selectAll(".node")
+                .data(rootNode.descendants())
+                .enter()
+                .append("g")
+                .attr("class", "node")
+                .attr("transform", d => `translate(${d.y},${d.x})`);
+
+            // Add circles to represent nodes
+            nodes
+                .append("circle")
+                .attr("r", 20)
+                .attr("fill", "steelblue");
+
+            // Add text labels to nodes
+            nodes
+                .append("text")
+                .attr("dy", 5)
+                .attr("x", d => (d.children ? -8 : 8))
+                .style("text-anchor", d => (d.children ? "end" : "start"))
+                .text(d => d.data.name);
+        }
+
+        function onResize() {
+            // Resize the canvas to be the window size
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            svg.attr("width", width).attr("height", height);
+
+            // Redraw the tree
+            // drawTree();
+            update();
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            // Bind the resize event to the window
+            window.addEventListener("resize", onResize);
+
+            init();
+            drawTree();
+        });
+
+
+        function zoomIn() {
+            // Zoom in on the graph
+            svg.transition().duration(500).call(zoom.scaleBy, 1.2);
+        }
+
+        function zoomOut() {
+            // Zoom out from the graph
+            svg.transition().duration(500).call(zoom.scaleBy, 0.8);
+        }
+
+        function zoomed(event) {
+            // Get the transform generated by d3.event and apply it to our svg
+            svg.attr("transform", event.transform);
+        }
+
+        function toggleChildren(d) {
+            console.log('toggleChildren',{d});
+            if (d.children) {
+                d._children = d.children;
+                d.children = null;
+            } else {
+                d.children = d._children;
+                d._children = null;
+            }
+        }
+
+        function click(event, d) {
+            toggleChildren(d);
+            
+            // Initialize the y0 and x0 properties of the clicked object
+            d.y0 = d.y;
+            d.x0 = d.x;
+
+            update(d);
+        }
+
+        function update(source) {
+            if(!source){
+                source = rootNode;
+            }
+            // Create a tree layout
+            treeLayout = d3.tree().size([window.innerWidth, window.innerHeight]);
+            // Assigns the x and y position for the nodes
+            treeLayout(rootNode);
+
+            // Update the nodes
+            const nodes = rootNode.descendants().reverse();
+            const links = rootNode.links();
+
+            // Normalize for fixed-depth
+            nodes.forEach(d => { d.y = d.depth * 180; });
+
+            // ****************** Nodes section ***************************
+            // Update the nodes...
+            var i = 0;
+            const node = svg.selectAll('g.node')
+                .data(nodes, d => d.id || (d.id = ++i));
+
+            // Enter any new modes at the parent's previous position.
+            const nodeEnter = node.enter().append('g')
+                .attr('class', 'node')
+                .attr("transform", d => `translate(${source.y0},${source.x0})`)
+                .on('click', click);
+
+            // Add Circle for the nodes
+            nodeEnter.append('circle')
+                .attr('class', 'node')
+                .attr('r', 1e-6)
+                .style("fill", d => d._children ? "lightsteelblue" : "#fff");
+
+            // Add labels for the nodes
+            nodeEnter.append('text')
+                .attr("dy", ".35em")
+                .attr("x", d => d.children || d._children ? -13 : 13)
+                .attr("text-anchor", d => d.children || d._children ? "end" : "start")
+                .text(d => d.data.name);
+
+            // UPDATE
+            const nodeUpdate = nodeEnter.merge(node);
+
+            // Transition to the proper position for the node
+            nodeUpdate.transition()
+                .duration(duration)
+                .attr("transform", d => `translate(${d.y},${d.x})`);
+
+            // Update the node attributes and style
+            nodeUpdate.select('circle.node')
+                .attr('r', 50)
+                .style("fill", d => d._children ? "lightsteelblue" : "#fff");
+
+            // Remove any exiting nodes
+            const nodeExit = node.exit().transition()
+                .duration(duration)
+                .attr("transform", d => `translate(${source.y},${source.x})`)
+                .remove();
+
+            // On exit reduce the node circles size to 0
+            nodeExit.select('circle')
+                .attr('r', 1e-6);
+
+            // On exit reduce the opacity of text labels
+            nodeExit.select('text')
+                .style('fill-opacity', 1e-6);
+
+            // ****************** Links section ***************************
+
+            // Update the links...
+            const link = svg.selectAll('path.link')
+                .data(links, d => d.target.id);
+
+            // Enter any new links at the parent's previous position.
+            const linkEnter = link.enter().insert('path', "g")
+                .attr("class", "link")
+                .attr('d', d => {
+                    const o = { x: source.x0, y: source.y0 };
+                    return diagonal(o, o);
+                });
+
+            // UPDATE
+            const linkUpdate = linkEnter.merge(link);
+
+            // Transition back to the parent element position
+            linkUpdate.transition()
+                .duration(duration)
+                .attr('d', d => diagonal(d, d.parent));
+
+            // Remove any exiting links
+            const linkExit = link.exit().transition()
+                .duration(duration)
+                .attr('d', d => {
+                    const o = { x: source.x, y: source.y };
+                    return diagonal(o, o);
+                })
+                .remove();
+
+            // Store the old positions for transition.
+            nodes.forEach(d => {
+                d.x0 = d.x;
+                d.y0 = d.y;
+            });
+        }
+
+        // Calculate diagonal projection for paths
+        function diagonal(s, d) {
+            if(!d){
+                d = s.target;
+                s = s.source;
+            }
+            const path = `M ${s.y} ${s.x}
+            C ${(s.y + d.y) / 2} ${s.x},
+              ${(s.y + d.y) / 2} ${d.x},
+              ${d.y} ${d.x}`;
+
+            return path;
+        }
+
+    </script>
+
+    <style>
+        #tree-container>svg {
+            background: white;
+        }
+
+        #controls {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+        }
+        .link {
+            pointer-events: none;
+        }
+
+        #tree-container {
+            margin-top: 50px;
+            margin-bottom: 50px;
+            margin-left: 20px;
+            margin-right: 20px;
+            border: 1px solid black;
+            padding: 10px;
+        }
+    </style>
 </head>
+
 <body>
-<svg id="tree-container"></svg>
-<script>
-var treeData = { name: "Top Level", children: [{ name: "Level 2: A" }, { name: "Level 2: B" }] };
-var margin = {top: 40, right: 90, bottom: 50, left: 90},
-    width = 660 - margin.left - margin.right,
-    height = 500 - margin.top - margin.bottom;
-
-var svg = d3.select("#tree-container")
-    .attr("width", width + margin.left + margin.right)
-    .attr("height", height + margin.top + margin.bottom)
-    .append("g")
-    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
-
-var root = d3.hierarchy(treeData),
-    treeLayout = d3.tree().size([height, width]);
-treeLayout(root);
-
-svg.selectAll('.link')
-  .data(root.links())
-  .enter()
-  .append('path')
-  .attr('class', 'link')
-  .attr('d', d3.linkHorizontal()
-    .x(function(d) { return d.y; })
-    .y(function(d) { return d.x; }));
-
-svg.selectAll('.node')
-  .data(root.descendants())
-  .enter()
-  .append('g')
-  .attr('class', 'node')
-  .attr("transform", function(d) { return "translate(" + d.y + "," + d.x + ")"; })
-  .append('circle')
-  .attr('r', 10);
-
-svg.selectAll('.node')
-  .append('text')
-  .attr("dy", ".35em")
-  .attr("x", function(d) { return d.children ? -13 : 13; })
-  .style("text-anchor", function(d) { return d.children ? "end" : "start"; })
-  .text(function(d) { return d.data.name; });
-</script>
+    <div id="tree-container"></div>
+    <div id="controls">
+        <button onclick="zoomIn()">Zoom In</button>
+        <button onclick="zoomOut()">Zoom Out</button>
+    </div>
 </body>
+
 </html>
