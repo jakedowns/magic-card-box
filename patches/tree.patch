@@ -1,0 +1,37 @@
+diff --git a/index.html b/index.html
+index d17e825..74cdfb2 100644
+--- a/index.html
++++ b/index.html
+@@ -25,7 +25,31 @@
+     <div id="tree-container"></div>
+ 
+     <script>
+-        // D3 code will go here
++        // Set the dimensions and margins of the diagram
++        var margin = {top: 20, right: 90, bottom: 30, left: 90},
++            width = 960 - margin.left - margin.right,
++            height = 600 - margin.top - margin.bottom;
++
++        // Append the svg object to the body of the page
++        // Appends a 'group' element to 'svg'
++        // Moves the 'group' element to the top left margin
++        var svg = d3.select("svg")
++            .attr("width", width + margin.left + margin.right)
++            .attr("height", height + margin.top + margin.bottom)
++        .append("g")
++            .attr("transform", "translate("
++                + margin.left + "," + margin.top + ")");
++
++        var data = {
++        name: "Root",
++        children: [
++            { name: "Child 1" },
++            { name: "Child 2" }
++        ]
++        };
++
++        // Tree creation code will go here
++
+     </script>
+ </body>
+ </html>

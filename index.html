@@ -1,31 +1,58 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>D3 Tree Visualization</title>
-    <!-- Load D3.js from CDN -->
-    <script src="https://d3js.org/d3.v6.min.js"></script>
-    <style>
-        /* Basic styles for the tree */
-        .node circle {
-            fill: #fff;
-            stroke: steelblue;
-            stroke-width: 3px;
-        }
-        .node text { font: 12px sans-serif; }
-        .link {
-            fill: none;
-            stroke: #ccc;
-            stroke-width: 2px;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>D3 Tree Example</title>
+<script src="https://d3js.org/d3.v6.min.js"></script>
+<style>
+  .node circle { fill: #fff; stroke: steelblue; stroke-width: 3px; }
+  .node text { font: 12px sans-serif; }
+  .link { fill: none; stroke: #ccc; stroke-width: 2px; }
+</style>
 </head>
 <body>
-    <div id="tree-container"></div>
+<svg id="tree-container"></svg>
+<script>
+var treeData = { name: "Top Level", children: [{ name: "Level 2: A" }, { name: "Level 2: B" }] };
+var margin = {top: 40, right: 90, bottom: 50, left: 90},
+    width = 660 - margin.left - margin.right,
+    height = 500 - margin.top - margin.bottom;
 
-    <script>
-        // D3 code will go here
-    </script>
+var svg = d3.select("#tree-container")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.top + margin.bottom)
+    .append("g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+var root = d3.hierarchy(treeData),
+    treeLayout = d3.tree().size([height, width]);
+treeLayout(root);
+
+svg.selectAll('.link')
+  .data(root.links())
+  .enter()
+  .append('path')
+  .attr('class', 'link')
+  .attr('d', d3.linkHorizontal()
+    .x(function(d) { return d.y; })
+    .y(function(d) { return d.x; }));
+
+svg.selectAll('.node')
+  .data(root.descendants())
+  .enter()
+  .append('g')
+  .attr('class', 'node')
+  .attr("transform", function(d) { return "translate(" + d.y + "," + d.x + ")"; })
+  .append('circle')
+  .attr('r', 10);
+
+svg.selectAll('.node')
+  .append('text')
+  .attr("dy", ".35em")
+  .attr("x", function(d) { return d.children ? -13 : 13; })
+  .style("text-anchor", function(d) { return d.children ? "end" : "start"; })
+  .text(function(d) { return d.data.name; });
+</script>
 </body>
 </html>
