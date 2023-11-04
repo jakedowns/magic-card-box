@@ -13,174 +13,251 @@
 
     <div id="app">
         <div class="controls">
-            <button @click="addCard">Add Card</button>
-            <button @click="moveTopToBottom" :disabled="cards.length === 0">Top to Bottom</button>
-            <button @click="moveBottomToTop" :disabled="cards.length === 0">Bottom to Top</button>
+            <form @submit.prevent="addStack({name:newStackName})">
+                <input v-model="newStackName" placeholder="New Stack Name" ref="newStackNameInput">
+                <button type="submit">Add Stack</button>
+            </form>
+            <button @click="addStack({name:newStackName})">Add Stack</button>
+            <button @click="collapseAll">Collapse All</button>
+            <button @click="expandAll">Expand All</button>
         </div>
-        <div class="card-stack">
-            <transition-group name="card-animation">
-                <div class="card" v-for="(card, index) in cards" :key="card.id" draggable="true" @dragstart="dragStart(index)" @dragover="dragOver(index)" @drop="drop(index)" @click="toggleCardSelection(index)" :class="{ 'selected': isCardSelected(index) }">
-                    Card {{ card.content }}
-                    <button @click="deleteCard(index)">Delete</button>
+        <div class="stacks-container">
+            <div v-for="(stack, stackId) in stacks" :key="stackId" class="stack"
+                :style="{ height: stack.collapsed ? '50px' : 'auto' }">
+                <div class="stack-header">
+                    <input v-model="stack.name" placeholder="Stack Name">
+                    <button @click="deleteStack(stackId)">Delete Stack</button>
+                    <button @click="toggleCollapse(stackId)">{{ stack.collapsed ? 'Expand' : 'Collapse' }}</button>
                 </div>
-            </transition-group>
+                <div class="stack-controls">
+                    <form @submit.prevent="addCard({stackId, content:newCardNames[stackId]})">
+                        <input v-model="newCardNames[stackId]" placeholder="Card Name" :ref="`cardNameInput-${stackId}`">
+                        <button type="submit">Add Card</button>
+                    </form>
+                </div>
+                <transition-group name="card-animation">
+                    <div v-for="(card, cardIndex) in stack.cards" :key="card.id" class="card" draggable="true"
+                        :class="{'selected':card.selected,
+                        'completed':card.completed_at?.length
+                        }"
+                        @click="toggleCardSelected(card)"
+                        @dragstart="dragStart(card, stackId)" @dragover.prevent @drop="drop(card, stackId)">
+                        <div>{{card.position}}</div>
+                        <div v-show="!card.editing">{{ card.content }}</div>
+                        <input v-show="card.editing" v-model="card.content" @blur="card.editing=false"
+                            @keyup.enter="card.editing=false">
+                        <div class="card-controls">
+                            <input type="checkbox" v-model="card.completed_at"
+                             @click.prevent="blockClick"
+                             @change="setCardCompleted({card, state:!$event.target.checked})">
+                            <button @click="toggleEditCard(card)">Edit</button>
+                            <button @click="deleteCard({stackId, cardIndex})">Delete</button>
+                            <button @click="toggleEditCard(card)">Edit</button>
+                            <button @click="deleteCard({stackId, cardIndex})">Delete</button>
+                        </div>
+                    </div>
+                </transition-group>
+                
+            </div>
         </div>
     </div>
 
     <script>
-        // Vuex store
+        const { createStore } = Vuex;
         const store = Vuex.createStore({
-            state() {
-                return {
-                    cards: []
-                };
-            },
+            state() { return { stacks: {}, newStackName: '', newCardNames: {} }; },
             mutations: {
-                addCard(state) {
-                    const newCard = {
-                        id: state.cards.length + 1,
-                        content: state.cards.length + 1
-                    };
-                    state.cards.push(newCard);
+                addStack(s, { name }) { const id = Date.now(); s.stacks[id] = { id, name, cards: [], collapsed: false }; },
+                deleteStack(s, id) { 
+                    if(window.confirm('Are you sure?!')) {
+                        delete s.stacks[id];
+                    }
+                 },
+                addCard(s, { stackId, content }) { const card = { 
+                    id: Date.now(), 
+                    content, 
+                    editing: false, 
+                    stackId,
+                    position: s.stacks[stackId].cards.length,
+                    selected: false }; s.stacks[stackId].cards.push(card); },
+                setCardCompleted(s, {card, state}){
+                    card.completed_at = state ? Date.now() : null;
                 },
-                moveTopToBottom(state) {
-                    if (state.cards.length > 1) {
-                        const topCard = state.cards.shift();
-                        state.cards.push(topCard);
+                deleteCard(s, { stackId, cardIndex }) { s.stacks[stackId].cards.splice(cardIndex, 1); },
+                toggleCollapse(s, id) { s.stacks[id].collapsed = !s.stacks[id].collapsed; },
+                collapseAll(s) { for (let id in s.stacks) s.stacks[id].collapsed = true; },
+                expandAll(s) { for (let id in s.stacks) s.stacks[id].collapsed = false; },
+                moveCard(s, { fromStackId, toStackId, cardId }) {
+                    const cardIndex = s.stacks[fromStackId].cards.findIndex(c => c.id === cardId);
+                    if (cardIndex > -1) {
+                        const [card] = s.stacks[fromStackId].cards.splice(cardIndex, 1);
+                        s.stacks[toStackId].cards.push(card);
                     }
                 },
-                moveBottomToTop(state) {
-                    if (state.cards.length > 1) {
-                        const bottomCard = state.cards.pop();
-                        state.cards.unshift(bottomCard);
+                setCardSelected(s, {card,status}) {
+                    const stack = s.stacks[card.stackId];
+                    if(stack) {
+                        stack.cards.forEach(c => c.selected = status && c.id === card.id);
                     }
                 },
-                deleteCard(state, index) {
-                    state.cards.splice(index, 1);
+                setCardPosition(s, {card, position}){
+                    const stack = s.stacks[card.stackId];
+                    if(stack) {
+                        // find the card in the stack
+                        const cardIndex = stack.cards.findIndex(c => c.id === card.id);
+                        if(cardIndex > -1) {
+                            // remove the card from the stack
+                            const [card] = stack.cards.splice(cardIndex, 1);
+                            // insert the card at the new position
+                            stack.cards.splice(position, 0, card);
+                            // renormalize the positions
+                            stack.cards.forEach((c, i) => c.position = i);
+                        }
+                    }
                 },
-                reorderCards(state, { oldIndex, newIndex }) {
-                    const card = state.cards.splice(oldIndex, 1)[0];
-                    state.cards.splice(newIndex, 0, card);
-                }
+                setCardEditing(s, { stackId, cardId, value }) { console.warn(arguments); const card = s.stacks[stackId].cards.find(c => c.id === cardId); if (card) card.editing = value; },
+                setCardContent(s, { stackId, cardId, content }) { const card = s.stacks[stackId].cards.find(c => c.id === cardId); if (card) card.content = content; },
+                setNewStackName(s, newName) { s.newStackName = newName; },
+                setNewCardName(s, { stackId, newName }) { s.newCardNames[stackId] = newName; },
             },
             actions: {
-                addCard(context) {
-                    context.commit('addCard');
+                toggleEditCard(context, card){
+                    context.commit('setCardEditing', { stackId: card.stackId, cardId: card.id, value: !card.editing });
                 },
-                moveTopToBottom(context) {
-                    context.commit('moveTopToBottom');
+                toggleCardSelected(context, card){
+                    //console.warn('selected',{card});
+                    context.commit('setCardSelected', {card, status:!card.selected});
                 },
-                moveBottomToTop(context) {
-                    context.commit('moveBottomToTop');
+                saveStateToLocalStorage() {
+                    localStorage.setItem('state', JSON.stringify(this.state));
                 },
-                deleteCard(context, index) {
-                    context.commit('deleteCard', index);
-                },
-                reorderCards(context, { oldIndex, newIndex }) {
-                    context.commit('reorderCards', { oldIndex, newIndex });
+                loadStateFromLocalStorage() {
+                    const state = localStorage.getItem('state');
+                    if (state) this.replaceState(JSON.parse(state));
+
+                    // verify cards have .stackId defined
+                    for (let id in this.state.stacks) {
+                        this.state.stacks[id].cards.forEach(c => c.stackId = id);
+                    }
                 }
+            }
+        });
+
+        // save to local storage on every mutation
+        store.subscribe((mutation, state) => {
+            store.dispatch('saveStateToLocalStorage');
+
+            // when adding a card, clear the :ref=`cardNameInput-${stackId}` input
+            if(mutation.type === 'addCard') {
+                const { stackId } = mutation.payload;
+                state.newCardNames[stackId] = '';
             }
         });
 
         const app = Vue.createApp({
             setup() {
-                const cards = Vue.computed(() => store.state.cards);
-                const selectedCards = Vue.ref([]);
+                const { computed, ref, onMounted } = Vue;
+                const stacks = computed(() => store.state.stacks);
+                const newStackName = ref('');
+                const newCardNames = ref({});
+                const dragging = ref({ cardId: null, fromStackId: null });
+                const newStackNameInput = ref(null);
 
-                function addCard() {
-                    store.dispatch('addCard');
+                function dragStart(card, stackId) {
+                    dragging.value = { card, fromStackId: stackId };
                 }
 
-                function deleteCard(index) {
-                    store.dispatch('deleteCard', index);
-                }
-
-                function moveTopToBottom() {
-                    store.dispatch('moveTopToBottom');
-                }
-
-                function moveBottomToTop() {
-                    store.dispatch('moveBottomToTop');
-                }
-
-                function dragStart(index) {
-                    event.dataTransfer.setData('text/plain', index);
-                }
-
-                function dragOver(index) {
-                    event.preventDefault();
-                }
-
-                function drop(newIndex) {
-                    const oldIndex = event.dataTransfer.getData('text/plain');
-                    store.dispatch('reorderCards', { oldIndex, newIndex });
-                }
-
-                function toggleCardSelection(index) {
-                    if (selectedCards.value.includes(index)) {
-                        selectedCards.value = selectedCards.value.filter((cardIndex) => cardIndex !== index);
-                    } else {
-                        selectedCards.value.push(index);
+                function drop(onCard) {
+                    if (dragging.value.cardId !== null) {
+                        console.warn('drop', {
+                            dragging : JSON.parse(JSON.stringify(dragging.value)), 
+                            onCard: JSON.parse(JSON.stringify(onCard))
+                        })
+                        store.commit('moveCard', { 
+                            fromStackId: dragging.value.fromStackId, 
+                            toStackId: onCard.stackId, 
+                            cardId: dragging.value.card.id 
+                        });
+                        // set the card's position within the stack
+                        store.commit('setCardPosition', {
+                            card: {
+                                id:dragging.value.card.id, 
+                                stackId:onCard.stackId
+                            }, 
+                            position: onCard.position-1
+                        });
+                        dragging.value = { card: null, fromStackId: null };
                     }
                 }
 
-                function isCardSelected(index) {
-                    return selectedCards.value.includes(index);
-                }
+                onMounted(() => {
+                    store.dispatch('loadStateFromLocalStorage');
+                    newStackNameInput.value.focus();
+                });
 
                 return {
-                    cards,
-                    addCard,
-                    deleteCard,
-                    moveTopToBottom,
-                    moveBottomToTop,
+                    stacks,
+                    newStackName,
+                    newCardNames,
+                    ...Vuex.mapActions([
+                        'toggleEditCard', 'toggleCardSelected'
+                    ]),
+                    ...Vuex.mapMutations([
+                        'addStack', 'deleteStack', 'addCard', 'deleteCard',
+                        'toggleCollapse', 'collapseAll', 'expandAll', 'moveCard',
+                        'setCardEditing', 'setCardContent', 'setNewStackName', 'setNewCardName',
+                        'setCardSelected', 'setCardCompleted'
+                    ]),
                     dragStart,
-                    dragOver,
                     drop,
-                    toggleCardSelection,
-                    isCardSelected
+                    newStackNameInput,
+                    blockClick(e) {
+                        e.stopPropagation();
+                    }
                 };
             }
         });
 
         app.use(store);
-
         app.mount('#app');
     </script>
 
     <style>
-        .card-stack {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
-        .card {
-            padding: 10px;
-            border: 1px solid #ccc;
-            margin: 5px;
-            width: 100px;
-            text-align: center;
-        }
-
-        .card.selected {
-            background-color: yellow;
-        }
-
-        .card-animation-enter-active,
-        .card-animation-leave-active {
-            transition: all 0.5s;
-        }
-
-        .card-animation-enter,
-        .card-animation-leave-to {
-            opacity: 0;
-            transform: translateY(30px);
-        }
-
-        .card-animation-move {
-            transition: transform 0.5s;
-        }
+.stacks-container{
+    display: flex;
+    flex-direction: row;
+}
+.stack{display:flex;flex-direction:column;flex-basis: 33vw; border: 1px solid black; 
+    padding: 30px; border-radius: 5px;
+    margin: 10px;
+}
+.stack.collapsed>.card:not(:first-child){display:none;}
+.card{
+    padding:5px;
+    border:1px solid #ccc;
+    margin:5px;
+    width:calc(100% - 60px);
+    text-align:center;
+    cursor:pointer;
+    user-select:none;
+    margin: 10px;
+    border-radius: 5px;
+    border: 1px solid black;
+}
+.card-controls {
+    margin-top: 10px;
+    opacity: 0;
+    transition: opacity 0.5s, height 0.5s;
+    overflow: hidden;
+}
+.card:hover {
+    border-color: steelblue;
+}
+.card:hover .card-controls { opacity: 1; }
+.card.selected, .card.editing{background-color:yellow;}
+.card.completed{background-color:lightgreen;}
+.drag-over{border-style:dashed;}
+.controls{margin-bottom:10px;}
     </style>
 
 </body>
