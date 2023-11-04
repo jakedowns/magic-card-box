@@ -1,371 +1,209 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-    <script src="https://d3js.org/d3.v7.min.js"></script>
-    <script type="text/javascript">
-        /* let data = {
-            name: "Tests",
-            children: [
-                {
-                    name: "Automated Smoke Testing Dashboard",
-                    children: [
-                        {
-                            name: "Scenario: Admin checks the status of tests",
-                            children: [
-                                {
-                                    name: "Given I am an admin user on the Test dashboard"
-                                },
-                                {
-                                    name: "When I load the dashboard"
-                                },
-                                {
-                                    name: "I should see a graph of the most recent feature tests",
-                                    status: "Passing"
-                                }
-                            ]
-                        }
-                    ]
-                },
-                {
-                    name: "User Accounts",
-                    children: [
-                        {
-                            name: "Scenario: User Registers for a new Account",
-                            children: [{ name: "Given" }, { name: "When" }, { name: "Then" }]
-                        },
-                        {
-                            name: "Scenario: User Logs In",
-                            children: [{ name: "Given" }, { name: "When" }, { name: "Then" }]
-                        },
-                        {
-                            name: "Scenario: User Logs Out",
-                            children: [{ name: "Given" }, { name: "When" }, { name: "Then" }]
-                        },
-                    ]
-                },
-                {
-                    name: "Watched Lots",
-                    children: [
-                        {
-                            name: "Scenario: Logged Out User Watches a Lot",
-                            children: [
-                                { name: "Given I am logged out", type: 'G' },
-                                { name: 'And I am lot 100 page', type: 'G' },
-                                { name: "When I try to watch a lot" },
-                                { name: "Then I am prompted to login " }]
-                        },
-                        {
-                            name: "Scenario: Logged In User Watches a Lot",
-                            children: [{ name: "Given" }, { name: "When" }, { name: "Then" }]
-                        },
-                        {
-                            name: "Scenario: Logged In User Un-Watches a Lot",
-                            children: [{ name: "Given" }, { name: "When" }, { name: "Then" }]
-                        },
-                    ]
-                }
-            ]
-        }; */
-
-    </script>
-    <script>
-        function generateRandomGherkinData() {
-            const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-            
-            const stepTypes = ["Given", "When", "Then", "And"];
-            const getRandomSteps = () => {
-                let steps = [
-                { name: "Given some initial context", status: getRandomStatus() },
-                { name: "When some action is carried out", status: getRandomStatus() },
-                { name: "Then expect some result", status: getRandomStatus() }
-                ];
-                
-                // Sprinkle some "And" steps
-                const additionalStepsCount = randomInt(0, 3);
-                for (let i = 0; i < additionalStepsCount; i++) {
-                steps.push({ name: "And some additional condition", status: getRandomStatus() });
-                }
-                return steps;
-            };
-
-            const getRandomStatus = () => {
-                const statuses = ["passing", "failing", "pending"];
-                return statuses[randomInt(0, statuses.length - 1)];
-            };
-
-            let data = {
-                name: "Root",
-                children: []
-            };
-
-            for (let i = 1; i <= randomInt(6, 10); i++) {
-                const feature = {
-                name: `Feature ${i}`,
-                children: []
-                };
-
-                for (let j = 1; j <= randomInt(5, 20); j++) {
-                const scenario = {
-                    name: `Scenario ${j}`,
-                    children: getRandomSteps()
-                };
-                feature.children.push(scenario);
-                }
-
-                data.children.push(feature);
-            }
-
-            return data;
-        }
-
-        // Example usage
-        data = generateRandomGherkinData();
-        //console.log(data);
-
-        // You would then use `sampleData` as the input for your D3 tree.
-
-    </script>
-    <script type="text/javascript">
-        const duration = 500;
-        let depthDistance = window.innerWidth / 4;
-        let svg, treeLayout, rootNode, zoom;
-
-        function init() {
-            zoom = d3.zoom().scaleExtent([0.1, 4]).on("zoom", zoomed);
-            svg = d3.select("#tree-container").append("svg").attr("width", window.innerWidth)
-                .attr("height", window.innerHeight).call(zoom).append("g");
-            treeLayout = d3.tree().size([window.innerWidth, window.innerHeight - 300]);
-            rootNode = d3.hierarchy(data).eachBefore(d => {
-                d.x0 = d.x, d.y0 = d.y
-            });
-            //collapseRecursive(rootNode);
-            // expand first node
-            //click(null, rootNode)
-            update(rootNode);
-        }
-
-        function colorForStatus(status){
-            switch(status){
-                case 'pending': return "yellow"; break;
-                case 'passing': return "green"; break;
-                case 'failing': return "red"; break;
-                default:
-                    return "purple";
-            }
-        }
-
-        function update(source = rootNode) {
-            treeLayout(rootNode);
-
-            // Calculate the depth of the tree
-            let maxDepth = 0;
-            rootNode.each(d => {
-                if (d.depth > maxDepth) maxDepth = d.depth;
-            });
-
-            // Calculate a fixed y position based on maximum depth
-            // This will be the y position where all leaf nodes will be aligned
-            const leafLevelY = maxDepth * depthDistance; // Adjust 180 to your needs for spacing
-
-            // Assign the calculated y to all leaf nodes
-            rootNode.descendants().forEach(d => {
-                if (!d.children && !d._children) {
-                d.y = leafLevelY;
-                } else {
-                d.y = d.depth * depthDistance; // Or your logic for non-leaf nodes
-                }
-            });
-
-            let i = 0;
-            let node = svg.selectAll('g.node').data(rootNode.descendants(), d => (d.id || (d.id = ++i)) && !d.hidden
-            );
-
-            let nodeEnter = node.enter().append('g').classed('node', true).attr("transform", d => `translate(${source.y0},${source.x0})`)
-            .on('click', click);
-            nodeEnter.append('circle').classed('node', true)
-            .attr('r', 1e-6).style("fill", d => colorForStatus(d.data.status));
-            nodeEnter.append('rect') // Add a rect element for the background box
-                .attr("x", d => d.children || d._children ? -20 : 10)
-                .attr("y", d => 0)
-                .attr("width", 200) // Adjust the width as needed
-                .attr("height", 20) // Adjust the height as needed
-                .style("fill", "rgba(0, 0, 0, 0.5)"); // Set the fill color to half-transparent white
-            nodeEnter.append('text').classed('label', true)
-                .attr("dy", ".35em")
-                .attr("x", d => d.children || d._children ? -13 : 13)
-                .attr("y", d => 0)
-                .attr("fill", "white")
-                .attr("text-anchor", "start")
-                .style("width", 200)
-                .style("overflow", "hidden")
-                .style("white-space", "normal") // Enable word wrap
-                .style("text-overflow", "clip") // Enable text clipping
-                //.style("color","white")
-                .text(d => d.data.name)
-                //.on('click', click);
-
-            let nodeUpdate = nodeEnter.merge(node);
-            nodeUpdate.transition().duration(duration).attr("transform", d => `translate(${d.y},${d.x})`); // + (100 * d.depth)
-            nodeUpdate.select('circle.node').attr('r', 2).style("fill", d => colorForStatus(d.data.status));
-            node.exit().transition().duration(duration).attr("transform", d => `translate(${source.y},${source.x})`).remove();
-            node.exit().select('circle').attr('r', 1e-6);
-            node.exit().select('text').style('fill-opacity', 1e-6);
-            let link = svg.selectAll('path.link').data(rootNode.links(), d => d.target.id);
-            let linkEnter = link.enter().insert('path', "g")
-                .classed("link", true)
-                .attr('d', d => {
-                    const o = { x: source.x0, y: source.y0 };
-                    return diagonal(o, o);
-                })
-                .style('fill', 'transparent')
-                .style('stroke', 'steelblue') // Set the stroke color to steelblue
-                .style('stroke-width', '2px'); // Set the stroke width to be thinner, say 2 pixels
-            let linkUpdate = linkEnter.merge(link);
-            linkUpdate.transition().duration(duration).attr('d', d => diagonal(d, d.parent));
-            link.exit().transition().duration(duration).attr('d', d => {
-                const o = { x: source.x, y: source.y };
-                return diagonal(o, o);
-            }).remove();
-            rootNode.descendants().forEach(d => {
-                d.x0 = d.x;
-                d.y0 = d.y;
-            });
-        }
-
-        function diagonal(s, d) {
-            if (!d) {
-                d = s.target;
-                s = s.source;
-            }
-            const path = `M ${s.y} ${s.x} C ${(s.y + d.y) / 2} ${s.x}, ${(s.y + d.y) / 2} ${d.x}, ${d.y} ${d.x}`;
-            return path;
-        }
-
-        function click(event, d) {
-            if(event){
-                //event.preventDefault();
-            }
-            console.warn('click',{d})
-            if(d._children){
-                expandLevel(d)
-            }else{
-                collapseLevel(d)
-            }
-            update();
-        }
-
-        function zoomed(event) {
-            svg.attr("transform", event.transform);
-        }
-
-        function collapseRecursive(d) {
-            collapseLevel(d, true)
-        }
-
-        function collapseLevel(d, recursive = false){
-            if (d.children) {
-                d._children = d.children;
-                if(recursive){
-                    d._children.forEach(collapseRecursive);
-                }else{
-                    d._children.forEach(flagHiddenRecursive.bind(null,true));
-                }
-                d.children = null;
-            }
-        }
-
-        function flagHiddenRecursive(d, status){
-            console.log('flagHiddenRecursive', {d,status})
-            d.hidden = status;
-            // if(d.children){
-            //     d.children.forEach(flagHiddenRecursive, status)
-            // }
-            // if(d._children){
-            //     d._children.forEach(flagHiddenRecursive, status)
-            // }
-        }
-
-        function expandLevel(d, recursive = false){
-            if (d._children) {
-                d.children = d._children;
-                if(recursive){
-                    d.children.forEach(expandRecursive);
-                }else{
-                    d._children.forEach(flagHiddenRecursive.bind(null,false));
-                }
-                d._children = null;
-            }
-        }
-
-        function expandRecursive(d) {
-            expandLevel(d, true)
-        }
-
-        function expandAll(){ expandRecursive(rootNode); update(); }
-        function collapseAll(){ collapseRecursive(rootNode); update(); }
-
-        document.addEventListener("DOMContentLoaded", () => {
-            window.addEventListener("resize", () => {
-                svg.attr("width", window.innerWidth).attr("height", window.innerHeight)
-                //.call(zoom)
-                treeLayout.size([
-                    window.innerWidth,
-                    window.innerHeight - 300
-                ])
-            });
-            init();
-        });
-
-
-    </script>
-
-    <style>
-        html,
-        body {
-            background-color: black;
-            font-family: 'Courier New', Courier, monospace;
-        }
-
-        #tree-container>svg {
-            background: black;
-        }
-
-        #controls {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-        }
-
-        .link {
-            pointer-events: none;
-        }
-
-        .label {}
-
-        #tree-container {
-            margin-top: 50px;
-            margin-bottom: 50px;
-            margin-left: 20px;
-            margin-right: 20px;
-            border: 1px solid white;
-            padding: 10px;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>D3 Nested Tree Example</title>
+<!-- Load D3.js from CDN -->
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+  .node circle {
+    fill: #fff;
+    stroke: steelblue;
+    stroke-width: 3px;
+  }
+  .node text {
+    font: 12px sans-serif;
+  }
+  .link {
+    fill: none;
+    stroke: #ccc;
+    stroke-width: 2px;
+  }
+</style>
 </head>
-
 <body>
-    <div id="tree-container"></div>
-    <div id="controls">
-        <button onclick="zoomIn()">Zoom In</button>
-        <button onclick="zoomOut()">Zoom Out</button>
-        <button onclick="collapseAll()">Collapse All</button>
-        <button onclick="expandAll()">Expand All</button>
-    </div>
-</body>
+<script>
+// Set the dimensions and margins of the diagram
+var margin = {top: 20, right: 90, bottom: 30, left: 90},
+    width = 960 - margin.left - margin.right,
+    height = 500 - margin.top - margin.bottom;
 
+// Append the svg object to the body of the page
+// Appends a 'group' element to 'svg'
+// Moves the 'group' element to the top left margin
+var svg = d3.select("body").append("svg")
+    .attr("width", width + margin.right + margin.left)
+    .attr("height", height + margin.top + margin.bottom)
+  .append("g")
+    .attr("transform", "translate("
+          + margin.left + "," + margin.top + ")");
+
+var i = 0,
+    duration = 750,
+    root;
+
+// Declares a tree layout and assigns the size
+var treemap = d3.tree().size([height, width]);
+
+// Sample data
+var treeData = {
+  name: "Top Level",
+  children: [
+    { 
+      name: "Level 2: A",
+      children: [
+        { name: "Son of A" },
+        { name: "Daughter of A" }
+      ]
+    },
+    { name: "Level 2: B" }
+  ]
+};
+
+// Assigns parent, children, height, depth
+root = d3.hierarchy(treeData, function(d) { return d.children; });
+root.x0 = height / 2;
+root.y0 = 0;
+
+// Collapse after the second level
+root.children.forEach(collapse);
+
+update(root);
+
+// Collapse the node and all it's children
+function collapse(d) {
+  if(d.children) {
+    d._children = d.children
+    d._children.forEach(collapse)
+    d.children = null
+  }
+}
+
+function update(source) {
+
+  // Assigns the x and y position for the nodes
+  var treeData = treemap(root);
+
+  // Compute the new tree layout.
+  var nodes = treeData.descendants(),
+      links = treeData.descendants().slice(1);
+
+  // Normalize for fixed-depth.
+  nodes.forEach(function(d){ d.y = d.depth * 180});
+
+  // ****************** Nodes section ***************************
+
+  // Update the nodes...
+  var node = svg.selectAll('g.node')
+      .data(nodes, function(d) {return d.id || (d.id = ++i); });
+
+  // Enter any new modes at the parent's previous position.
+  var nodeEnter = node.enter().append('g')
+      .attr('class', 'node')
+      .attr("transform", function(d) {
+        return "translate(" + source.y0 + "," + source.x0 + ")";
+    })
+    .on('click', click);
+
+  // Add Circle for the nodes
+  nodeEnter.append('circle')
+      .attr('class', 'node')
+      .attr('r', 1e-6)
+      .style("fill", function(d) {
+          return d._children ? "lightsteelblue" : "#fff";
+      });
+
+  // Add labels for the nodes
+  nodeEnter.append('text')
+      .attr("dy", ".35em")
+      .attr("x", function(d) {
+          return d.children || d._children ? -13 : 13;
+      })
+      .attr("text-anchor", function(d) {
+          return d.children || d._children ? "end" : "start";
+      })
+      .text(function(d) { return d.data.name; });
+
+  // UPDATE
+  var nodeUpdate = nodeEnter.merge(node);
+
+  // Transition to the proper position for the node
+  nodeUpdate.transition()
+    .duration(duration)
+    .attr("transform", function(d) { 
+        return "translate(" + d.y + "," + d.x + ")";
+     });
+
+  // Update the node attributes and style
+  nodeUpdate.select('circle.node')
+    .attr('r', 10)
+    .style("fill", function(d) {
+        return d._children ? "lightsteelblue" : "#fff";
+    })
+    .attr('cursor', 'pointer');
+
+
+  // ****************** links section ***************************
+
+  // Update the links...
+  var link = svg.selectAll('path.link')
+      .data(links, function(d) { return d.id; });
+
+  // Enter any new links at the parent's previous position.
+  var linkEnter = link.enter().insert('path', "g")
+      .attr("class", "link")
+      .attr('d', function(d){
+        var o = {x: source.x0, y: source.y0}
+        return diagonal(o, o)
+      });
+
+  // UPDATE
+  var linkUpdate = linkEnter.merge(link);
+
+  // Transition back to the parent element position
+  linkUpdate.transition()
+      .duration(duration)
+      .attr('d', function(d){ return diagonal(d, d.parent) });
+
+  // Remove any exiting links
+  var linkExit = link.exit().transition()
+      .duration(duration)
+      .attr('d', function(d) {
+        var o = {x: source.x, y: source.y}
+        return diagonal(o, o)
+      })
+      .remove();
+
+  // Store the old positions for transition.
+  nodes.forEach(function(d){
+    d.x0 = d.x;
+    d.y0 = d.y;
+  });
+
+  // Creates a curved (diagonal) path from parent to the child nodes
+  function diagonal(s, d) {
+
+    path = `M ${s.y} ${s.x}
+            C ${(s.y + d.y) / 2} ${s.x},
+              ${(s.y + d.y) / 2} ${d.x},
+              ${d.y} ${d.x}`
+
+    return path
+  }
+
+  // Toggle children on click.
+  function click(event, d) {
+    if (d.children) {
+        d._children = d.children;
+        d.children = null;
+      } else {
+        d.children = d._children;
+        d._children = null;
+      }
+    update(d);
+  }
+}
+</script>
+</body>
 </html>

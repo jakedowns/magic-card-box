@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vue 3 Card Stack with Vuex 4</title>
+    <script src="https://unpkg.com/vue@next"></script>
+    <script src="https://unpkg.com/vuex@next"></script>
+</head>
+
+<body>
+
+    <div id="app">
+        <div class="controls">
+            <button @click="addCard">Add Card</button>
+            <button @click="moveTopToBottom" :disabled="cards.length === 0">Top to Bottom</button>
+            <button @click="moveBottomToTop" :disabled="cards.length === 0">Bottom to Top</button>
+        </div>
+        <div class="card-stack">
+            <transition-group name="card-animation">
+                <div class="card" v-for="(card, index) in cards" :key="card.id" draggable="true" @dragstart="dragStart(index)" @dragover="dragOver(index)" @drop="drop(index)" @click="toggleCardSelection(index)" :class="{ 'selected': isCardSelected(index) }">
+                    Card {{ card.content }}
+                    <button @click="deleteCard(index)">Delete</button>
+                </div>
+            </transition-group>
+        </div>
+    </div>
+
+    <script>
+        // Vuex store
+        const store = Vuex.createStore({
+            state() {
+                return {
+                    cards: []
+                };
+            },
+            mutations: {
+                addCard(state) {
+                    const newCard = {
+                        id: state.cards.length + 1,
+                        content: state.cards.length + 1
+                    };
+                    state.cards.push(newCard);
+                },
+                moveTopToBottom(state) {
+                    if (state.cards.length > 1) {
+                        const topCard = state.cards.shift();
+                        state.cards.push(topCard);
+                    }
+                },
+                moveBottomToTop(state) {
+                    if (state.cards.length > 1) {
+                        const bottomCard = state.cards.pop();
+                        state.cards.unshift(bottomCard);
+                    }
+                },
+                deleteCard(state, index) {
+                    state.cards.splice(index, 1);
+                },
+                reorderCards(state, { oldIndex, newIndex }) {
+                    const card = state.cards.splice(oldIndex, 1)[0];
+                    state.cards.splice(newIndex, 0, card);
+                }
+            },
+            actions: {
+                addCard(context) {
+                    context.commit('addCard');
+                },
+                moveTopToBottom(context) {
+                    context.commit('moveTopToBottom');
+                },
+                moveBottomToTop(context) {
+                    context.commit('moveBottomToTop');
+                },
+                deleteCard(context, index) {
+                    context.commit('deleteCard', index);
+                },
+                reorderCards(context, { oldIndex, newIndex }) {
+                    context.commit('reorderCards', { oldIndex, newIndex });
+                }
+            }
+        });
+
+        const app = Vue.createApp({
+            setup() {
+                const cards = Vue.computed(() => store.state.cards);
+                const selectedCards = Vue.ref([]);
+
+                function addCard() {
+                    store.dispatch('addCard');
+                }
+
+                function deleteCard(index) {
+                    store.dispatch('deleteCard', index);
+                }
+
+                function moveTopToBottom() {
+                    store.dispatch('moveTopToBottom');
+                }
+
+                function moveBottomToTop() {
+                    store.dispatch('moveBottomToTop');
+                }
+
+                function dragStart(index) {
+                    event.dataTransfer.setData('text/plain', index);
+                }
+
+                function dragOver(index) {
+                    event.preventDefault();
+                }
+
+                function drop(newIndex) {
+                    const oldIndex = event.dataTransfer.getData('text/plain');
+                    store.dispatch('reorderCards', { oldIndex, newIndex });
+                }
+
+                function toggleCardSelection(index) {
+                    if (selectedCards.value.includes(index)) {
+                        selectedCards.value = selectedCards.value.filter((cardIndex) => cardIndex !== index);
+                    } else {
+                        selectedCards.value.push(index);
+                    }
+                }
+
+                function isCardSelected(index) {
+                    return selectedCards.value.includes(index);
+                }
+
+                return {
+                    cards,
+                    addCard,
+                    deleteCard,
+                    moveTopToBottom,
+                    moveBottomToTop,
+                    dragStart,
+                    dragOver,
+                    drop,
+                    toggleCardSelection,
+                    isCardSelected
+                };
+            }
+        });
+
+        app.use(store);
+
+        app.mount('#app');
+    </script>
+
+    <style>
+        .card-stack {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .card {
+            padding: 10px;
+            border: 1px solid #ccc;
+            margin: 5px;
+            width: 100px;
+            text-align: center;
+        }
+
+        .card.selected {
+            background-color: yellow;
+        }
+
+        .card-animation-enter-active,
+        .card-animation-leave-active {
+            transition: all 0.5s;
+        }
+
+        .card-animation-enter,
+        .card-animation-leave-to {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+
+        .card-animation-move {
+            transition: transform 0.5s;
+        }
+    </style>
+
+</body>
+
+</html>
