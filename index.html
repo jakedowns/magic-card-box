@@ -26,7 +26,6 @@
                     <input v-model="newStackName" placeholder="New Stack Name" ref="newStackNameInput">
                     <button type="submit">Add Stack</button>
                 </form>
-                <button @click="addStack({name:newStackName})">Add Stack</button>
                 <button @click="collapseAll">Collapse All</button>
                 <button @click="expandAll">Expand All</button>
                 <button @click="closeAllStacks">Close All</button>
@@ -55,7 +54,6 @@
                         'pending': stack.passing === -1
                     }" :style="{ height: stack.collapsed ? '50px' : 'auto', }">
                     <div class="stack-header">
-
                         <div>
                             <span class="stack-name-unhovered">{{ stack.name }}</span>
                             <span class="stack-name-unhovered"> <br />Cards: ({{ Object.keys(stack.cards).length }})
@@ -63,13 +61,11 @@
                         </div>
                         <hr v-if="!stack.collapsed" />
 
-
+                        
                         <div v-if="!stack.collapsed" class="stack-header-details">
                             <input v-model="stack.name" placeholder="Stack Name"><br />
                             id: {{stack.id}}<br />
-                            <button @click.prevent="toggleCollapse(stackId)">{{ stack.collapsed ? 'Expand' : 'Collapse'
-                                }}</button>
-                            <button @click="setStackClosed({stackId, closed:true})">Close</button>
+                            
                             <button @click="deleteStack(stackId)" class="pull-right">Delete Stack</button>
                             <hr />
                             Tags:<br />
@@ -80,43 +76,65 @@
                             <input placeholder="Add Tag">
                         </div>
                     </div>
+
+                    <button @click.prevent="toggleCollapse(stackId)">{{ stack.collapsed ? 'Expand' : 'Collapse'
+                    }}</button>
+                    <button @click="setStackClosed({stackId, closed:true})">Close</button>
                     
                     <div class="stack-cards-section">
                         <div v-if="!stack.collapsed && !Object.entries(stack.cards).length" class="empty-stack-message">
                             Empty Stack <a href="#">Click Here to add a new card</a></div>
-                        <transition-group name="card-animation">
+                        <!-- <transition-group name="card-animation"> -->
                             <!-- 
 
                             CARDS
 
-                        -->
-                            <div v-for="([cardIndex, card]) in Object.entries(stack.cards).reverse()" :key="card.id"
-                                class="card" draggable="true" :class="{'selected':card.selected,
-                            'completed':card.completed_at?.length,
-                            'pending':card?.passing === -1,
-                            'passing':card?.passing === true,
-                            'failing':card?.passing === false
-                            }" @click="toggleCardSelected(card)" @dragstart="dragStart(card, stackId)"
-                                @dragover.prevent @drop="drop(card, stackId)">
-                                <div>{{card.position}}</div>
+                        --> 
+                        <!-- const [index, value] of arr.entries( -->
+                        <!-- <pre>stack card_order: {{stack.card_order}}</pre> -->
+                            <div v-for="(cardID, index) in stack.card_order"
+                                    :key="cardID"
+                                    class="card" 
+                                    draggable="true" 
+                                    :class="{
+                                        'selected':  stack.cards[cardID.toString()]?.selected,
+                                        'completed': stack.cards[cardID.toString()]?.completed_at,
+                                        'pending':   stack.cards[cardID.toString()]?.passing === -1,
+                                        'passing':   stack.cards[cardID.toString()]?.passing === true,
+                                        'failing':   stack.cards[cardID.toString()]?.passing === false
+                                    }" 
+                                    @click="toggleCardSelected(stack.cards[cardID.toString()])" 
+                                    @dragstart="dragStart(stack.cards[cardID.toString()], stackId)"
+                                    @dragover.prevent @drop="drop(stack.cards[cardID.toString()], stackId)"
+                                >
+                                <pre>cardID {{cardID}} index {{index}}</pre>
+                                <div>position: {{stack.cards[cardID.toString()]?.position}}</div>
                                 <!-- card errors -->
-                                <div v-if="card.error" class="card-error">{{ card.error }}</div>
-                                <div v-show="!card.editing">{{ card.content }}</div>
-                                <textarea v-show="card.editing" v-model="card.content"
-                                    style="width:100%; min-height: 150px;" @blur="card.editing=false"
-                                    @keyup.enter="card.editing=false"></textarea>
-                                <div class="card-controls" v-if="!card.editing">
-                                    <label :for="`completed_input_${card.id}`"><input type="checkbox"
-                                            v-if="!card.tags.includes(TAG_HIDE_COMPLETE_TOGGLE)"
-                                            v-model="card.completed_at" :name="`completed_input_${card.id}`"
-                                            @change="setCardCompleted({card, state:$event.target.checked})">
+                                <div v-if="stack.cards[cardID.toString()]?.error" class="card-error">{{ stack.cards[cardID.toString()]?.error }}</div>
+                                <div v-show="!stack.cards[cardID.toString()]?.editing">{{ stack.cards[cardID.toString()]?.content }}</div>
+                                <textarea 
+                                    v-if="stack.cards[cardID.toString()]"
+                                    v-show="stack.cards[cardID.toString()]?.editing" 
+                                    v-model="stack.cards[cardID.toString()].content"
+                                    style="width:100%; min-height: 150px;" 
+                                    @blur="stack.cards[cardID.toString()].editing=false"
+                                    @keyup.enter="stack.cards[cardID.toString()].editing=false"></textarea>
+                                <div class="card-controls" v-if="!stack.cards[cardID.toString()]?.editing">
+                                    <label :for="`completed_input_${cardID}`">
+                                        <input type="checkbox"
+                                            v-if="stack.cards[cardID.toString()] && !stack.cards[cardID.toString()]?.tags.includes(TAG_HIDE_COMPLETE_TOGGLE)"
+                                            v-model="stack.cards[cardID.toString()].completed_at ? true : false" 
+                                            :name="`completed_input_${cardID}`"
+                                            @change="setCardCompleted({
+                                                card: stack.cards[cardID.toString()], 
+                                                state:$event.target.checked})">
                                         Done?
                                     </label><br />
-                                    <button @click="toggleEditCard(card)">Edit</button>
-                                    <button @click="deleteCard({stackId, cardId:card.id})">Delete</button>
+                                    <button @click="toggleEditCard(stack.cards[cardID.toString()])">Edit</button>
+                                    <button @click="deleteCard({stackId, cardID})">Delete</button>
                                 </div>
                             </div>
-                        </transition-group>
+                        <!-- </transition-group> -->
                     </div><!-- stack-cards-section-->
 
                     <!-- AFTER stack-cards-section so sibling selector works on hover -->
@@ -210,7 +228,7 @@
                 }
                 for (let id in this.cards) {
                     const card = this.cards[id];
-                    if (card.passing === -1) {
+                    if (card.passing === -1 && !card.completed_at) {
                         foundPending = true;
                     }
                     else if (card.passing === false) {
@@ -241,15 +259,15 @@
         const store = Vuex.createStore({
             state() { return DEFAULT_STATE; },
             mutations: {
-                addStack(s, { name, forceId, tags }) {
+                addStack(s, { name, forceId, tags, collapsed, closed }) {
                     const id = forceId ?? Date.now();
                     s.stacks[id.toString()] = new Stack({
                         id,
                         name,
                         cards: {},
                         card_order: [],
-                        collapsed: false,
-                        closed: false,
+                        collapsed: collapsed ?? false,
+                        closed: closed ?? false,
                         tags: tags ?? [],
                         passing: -1 // pending by default
                     });
@@ -337,9 +355,8 @@
                 setCardCompleted(s, { card, state }) {
                     console.log('setCardCompleted', { card, state })
 
-                    s.stacks[card.stackId].cards[card.id].completed_at = state ? Date.now() : null;
-                    // // clear the new card name input for the stack
-                    // s.newCardNames[card.stackId] = '';
+                    s.stacks[card.stackId.toString()].cards[card.id.toString()].completed_at = state ? Date.now() : null;
+                    console.log('set CompletedAt to:', s.stacks[card.stackId.toString()].cards[card.id.toString()].completed_at)
                 },
                 setCardPassingStatus(s, { card, passing }) {
                     // we should be passing in an index to the stack card array here :G
@@ -357,7 +374,7 @@
                 },
                 deleteCard(s, { stackId, cardId }) {
                     if (s.skip_ask_before_delete || confirm('Are you sure?!')) {
-                        delete s.stacks[stackId.toString()].cards[cardId]
+                        delete s.stacks[stackId.toString()].cards[cardId.toString()]
                         // remove from card_order array
                         s.stacks[stackId.toString()].card_order.splice(s.stacks[stackId.toString()].card_order.indexOf(cardId), 1);
                         s.stacks[stackId.toString()].flagDirty();
@@ -385,10 +402,10 @@
                     }
                 },
                 moveCard(s, { fromStackId, toStackId, cardId }) {
-                    const cardIndex = s.stacks[fromStackId].cards.findIndex(c => c.id === cardId);
+                    const cardIndex = s.stacks[fromStackId].card_order.findIndex(c => c.id === cardId);
                     if (cardIndex > -1) {
-                        const [card] = s.stacks[fromStackId].cards.splice(cardIndex, 1);
-                        s.stacks[toStackId].cards.push(card);
+                        const [card] = s.stacks[fromStackId].card_order.splice(cardIndex, 1);
+                        s.stacks[toStackId].card_order.push(card);
                     }
                 },
                 setCardSelected(s, { card, status }) {
@@ -399,19 +416,21 @@
                     }
                 },
                 setCardPosition(s, { card, position }) {
-                    const stack = s.stacks[card.stackId];
-                    if (stack) {
-                        // find the card in the stack
-                        const cardIndex = stack.cards.findIndex(c => c.id === card.id);
-                        if (cardIndex > -1) {
-                            // remove the card from the stack
-                            const [card] = stack.cards.splice(cardIndex, 1);
-                            // insert the card at the new position
-                            stack.cards.splice(position, 0, card);
-                            // renormalize the positions
-                            stack.cards.forEach((c, i) => c.position = i);
-                        }
+                    const stack = s.stacks[card.stackId.toString()];
+                    if(!stack){
+                        throw new Error("stack not found for card " + `c:${card.id} s:${card.stackId}`)
                     }
+                    // find the card in the stack
+                    const cardIndex = stack.card_order.findIndex(cid => cid.toString() === card.id.toString());
+                    if(cardIndex === -1){
+                        throw new Error("card not found in stack " + `c:${card.id} s:${card.stackId}`)
+                    }
+                    // remove the card from the stack
+                    stack.card_order.splice(cardIndex, 1);
+                    // insert the card at the new position
+                    stack.card_order.splice(position, 0, card.id);
+                    // renormalize the positions
+                    stack.card_order.forEach((c, i) => stack.cards[c.toString()].position = i);
                 },
                 setCardEditing(s, { stackId, cardId, value }) { console.warn(arguments); const card = s.stacks[stackId].cards[cardId]; if (card) { card.editing = value; } },
                 setCardContent(s, { stackId, cardId, content }) { const card = s.stacks[stackId].cards.find(c => c.id === cardId); if (card) card.content = content; },
@@ -460,6 +479,30 @@
                             const card = this.state.stacks[id.toString()].cards[cardId];
                             card.tags = card.tags ?? [];
                         }
+
+                        // make sure there's an entry in the .stack.card_order for all cards
+                        // (see if any cards are missing from the card_order array and add them)
+                        const cardIds = Object.keys(this.state.stacks[id.toString()].cards);
+                        cardIds.forEach(cardId => {
+                            if (!this.state.stacks[id.toString()].card_order.includes(cardId)) {
+                                this.state.stacks[id.toString()].card_order.push(cardId);
+                            }
+                        });
+
+                        // make sure card positions match the .stack.card_order index
+                        let orphanedCardIds = [];
+                        this.state.stacks[id.toString()].card_order.forEach((cardId, index) => {
+                            // if the card isn't present, flag it for removal from the card_order array
+                            if (!this.state.stacks[id.toString()].cards[cardId]) {
+                                orphanedCardIds.push(cardId);
+                            }
+                            else {
+                                // set the card position to match the index in the card_order array
+                                this.state.stacks[id.toString()].cards[cardId].position = index;
+                            }
+                        });
+                        // clean up orphans
+                        this.state.stacks[id.toString()].card_order = this.state.stacks[id.toString()].card_order.filter(cardId => !orphanedCardIds.includes(cardId));
                     }
 
 
@@ -467,10 +510,14 @@
                     const SYSTEM_STACK_ID = '100';
                     //if (!this.state.stacks[SYSTEM_STACK_ID]) {
                         // !!! for now, always recreate this stack !!!
+                        // if it was .closed before, make sure it's .closed
+                        // if it was .collapsed before, make sure it's .collapsed
                         this.commit('addStack', {
                             name: 'System',
                             //tags: [TAG_TEST_STACK],
-                            forceId: SYSTEM_STACK_ID
+                            forceId: SYSTEM_STACK_ID,
+                            collapsed: this.state.stacks[SYSTEM_STACK_ID]?.collapsed ?? false,
+                            closed: this.state.stacks[SYSTEM_STACK_ID]?.closed ?? false
                         });
                     // }else{
                     //     console.warn('system stack found?',{
@@ -957,6 +1004,9 @@
                 const passFailPendingString = computed(() => {
                     return (stack) => {
                         const counts = stack.statusCounts;
+                        if(!counts){
+                            return '';
+                        }
                         return `pass: ${counts.countPassing} | fail: ${counts.countFailing} | pending: ${counts.countPending} | err: ${counts.countErrors}`;
                     }
                 })
@@ -969,13 +1019,19 @@
                     if (dragging.value.cardId !== null) {
                         console.warn('drop', {
                             dragging: JSON.parse(JSON.stringify(dragging.value)),
-                            onCard: JSON.parse(JSON.stringify(onCard))
+                            onCard: JSON.parse(JSON.stringify(onCard)),
+                            fromPosition: dragging.value.card.position,
+                            toPosition: onCard.position
                         })
-                        store.commit('moveCard', {
-                            fromStackId: dragging.value.fromStackId,
-                            toStackId: onCard.stackId,
-                            cardId: dragging.value.card.id
-                        });
+                        // if we changed stacks, update the card's stackId
+                        const fromStackId = dragging.value.fromStackId;
+                        if(fromStackId !== onCard.stackId){
+                            store.commit('moveCard', {
+                                fromStackId,
+                                toStackId: onCard.stackId,
+                                cardId: dragging.value.card.id
+                            });
+                        }
                         // set the card's position within the stack
                         store.commit('setCardPosition', {
                             card: {
@@ -984,6 +1040,7 @@
                             },
                             position: onCard.position - 1
                         });
+                        // clear the dragging state
                         dragging.value = { card: null, fromStackId: null };
                     }
                 }
@@ -1152,6 +1209,7 @@
                     },
                     onStackClicked(e, stackId) {
                         console.log('onStackClicked', stackId)
+                        return;
 
                         // if we clicked on or within a .card class element
                         // we want to toggle SelectCard instead
@@ -1247,6 +1305,10 @@
             display: block;
         }
 
+        .stack-controls {
+            top: 200px;
+        }
+
         .stack-header-details {
             top: 0px;
         }
@@ -1254,6 +1316,10 @@
         .stack-controls,
         .stack-header-details {
             opacity: 0;
+        }
+
+        .stack-controls:hover {
+            opacity: 1;
         }
 
         .stack:not(.collapsed-stack) .stack-header-details:hover {
