@@ -60,9 +60,11 @@
                     <li @click="selectMenuItem('deleteSelectedCards')">Delete Selected Cards...</li>
                 </ul>
                 <ul class="stack-context-menu" v-else-if="contextMenuContext === 'stack'">
+                    <li>StackID: <pre>{{selectedStacks.join(", ")}}</pre></li>
                     <li @click="selectMenuItem('mergeSelectedStack')">Merge Stack...</li>
                     <li @click="selectMenuItem('toggleSelectedStackCollapsed')">Collapse/Expand Stack...</li>
                     <li @click="selectMenuItem('closeSelectedStack')">Close Stack...</li>
+                    <li @click="selectMenuItem('deleteSelectedStacks')">Delete Selected Stack(s)...</li>
                 </ul>
                 <ul class="global-context-menu" v-else>
                     <li @click="selectMenuItem('openCommandPalette')">Command Palette...</li>
@@ -105,11 +107,42 @@
                 </select>
                 <!-- <button @click="openSelectedStack">Open Stack</button> -->
             </div>
+
+
+            <!-- theme switcher -->
+            <!-- based on
+            
+                const themeNames = {
+                    THEME_DARK: 'Dark', // DEFAULT
+                    THEME_DARK_STATUS_COLORS: 'Dark with Status Colors',
+                    THEME_LIGHT: 'Light',
+                    THEME_LIGHT_STATUS_COLORS: 'Light with Status Colors'
+                };
+                const AVAILABLE_THEMES = Object.values(themeNames);
+
+                const DEFAULT_STATE = {
+                    
+                    // currently selected theme...
+                    currentTheme: window.THEME_DARK, // default
+                    AVAILABLE_THEMES: AVAILABLE_THEMES, // doesn't need to be in store
+            -->
+            <div class="theme-switcher">
+                <label>Current Theme: {{ currentThemeName }}
+                    <select v-model="currentThemeIndex">
+                        <!-- abstract into existing or new pattern... -->
+                        <option value="NEW">New Theme...</option>
+                        <option v-for="theme in AVAILABLE_THEMES" :value="theme">
+                            {{ theme }}
+                        </option>
+                    </select>
+                </label>
+            </div>
+
             <div class="stacks-container">
                 <!-- 
 
 
-                    STACKS
+                    StackTemplate
 
                 -->
                 <div v-for="([stackId, stack]) in Object.entries(stacks).reverse().filter(([_, stack]) => !stack.closed)"
@@ -131,7 +164,7 @@
                     <div class="stack-header">
                         <div>
                             <span class="stack-name-unhovered">{{ stack.name }}</span>
-                            <span class="stack-name-unhovered"> <br />Cards: ({{ Object.keys(stack.cards).length }})
+                            <span class="stack-name-unhovered"> <br />({{ Object.keys(stack.cards).length }})
                                 <br /><span class="stack-header-details">{{ passFailPendingString(stack) }}</span></span>
                         </div>
                         <hr v-if="!stack.collapsed" />
@@ -164,7 +197,7 @@
                         <!-- <transition-group name="card-animation"> -->
                         <!-- 
 
-                            CARDS
+                            CardTemplate
 
                         --> 
                         <!-- const [index, value] of arr.entries( -->

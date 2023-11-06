@@ -265,8 +265,13 @@ const app = Vue.createApp({
             clearTimeout(touchStartTimer);
         };
 
+        const deleteSelectedStacks = () => {
+            store.commit('deleteSelectedStacks');
+        }
+
         const selectMenuItem = (action) => {
             console.log('selectMenuItem selected action:', action);
+            // THIS COULD BE A MAP DATA STRUCTURE
             switch(action){
                 case 'toggleSelectedStackCollapsed':
                     store.commit('toggleSelectedStackCollapsed');
@@ -292,6 +297,9 @@ const app = Vue.createApp({
                     break;
                 case 'expandAllStacks':
                     expandAll();
+                    break;
+                case 'deleteSelectedStacks':
+                    deleteSelectedStacks();
                     break;
                 default:
                     throw new Error(`Unknown action: ${action}`);
@@ -463,7 +471,29 @@ const app = Vue.createApp({
             store.dispatch('toggleCardSelected', {card});
         }
 
+        window.printCards = (cardsArray)=>{
+            let output = cardsArray.reduce((output, card) => {
+                output += card.content;
+                return output;
+            },'');
+            return output;
+        }
+        
+        // define currentThemeIndex (map to store state.currentThemeIndex)
+        const currentThemeName = computed(() => store.state.AVAILABLE_THEMES[store.state.currentThemeIndex]);
+
+        // define currentThemeName as a computed prop that maps to store state.AVAILABLE_THEMES[currentThemeIndex]
+        const currentThemeIndex = computed({
+            get: () => store.state.currentThemeIndex,
+            set: (value) => store.commit('setCurrentThemeIndex', value)
+        });
+
         // RETURN SETUP OBJECT
+        // TODO: make building this a multi-phase process
+        // 1. build the object
+        // 2. merge in the computed properties
+        // 3. merge in the methods
+        // 4. return the object
         return {
             stacks,
             newCardNames,
@@ -479,6 +509,10 @@ const app = Vue.createApp({
                 store.commit('addStack', { name: newStackName.value });
                 //newStackNameInput.value.focus();
             },
+
+            AVAILABLE_THEMES: store.state.AVAILABLE_THEMES,
+            currentThemeIndex,
+            currentThemeName,
 
             selectedStackToMerge,
 

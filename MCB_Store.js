@@ -1,4 +1,18 @@
+const themeNames = {
+    THEME_DARK: 'Dark', // DEFAULT
+    THEME_DARK_STATUS_COLORS: 'Dark with Status Colors',
+    THEME_LIGHT: 'Light',
+    THEME_LIGHT_STATUS_COLORS: 'Light with Status Colors'
+};
+const AVAILABLE_THEMES = Object.values(themeNames);
+
 const DEFAULT_STATE = {
+    
+    // could separate the value and a frontEnd specific themeSwitcherSelection that would require user to press "confirm" to save the change... but let's just tie the v-model directly to the store for now
+    // currently selected theme...
+    currentTheme: window.THEME_DARK, // default
+    AVAILABLE_THEMES: AVAILABLE_THEMES, // doesn't need to be in store
+
     // view options
     stackColumns: 2,
     cardColumns: 2,
@@ -28,6 +42,11 @@ function setupStore(){
     const store = Vuex.createStore({
         state() { return DEFAULT_STATE; },
         mutations: {
+            // we need a better way to do basic mutations without having
+            // to define a mutation for every top level / nested state property
+            setTheme(s, theme){
+                s.theme = theme;
+            },
             setShowPopup(s, showPopup) {
                 s.showPopup = showPopup;
             },
@@ -268,6 +287,14 @@ function setupStore(){
             setNewCardName(s, { stackId, newName }) { s.newCardNames[stackId.toString()] = newName; },
         },
         actions: {
+            deleteSelectedStacks(context){
+                if(confirm(`Are you sure you want to delete ${all_these_things} ?`)){
+                    context.state.selectedStacks.forEach(stackId => {
+                        context.commit('deleteStackSilent', stackId);
+                    });
+                    context.commit('deselectAllStacks');
+                }
+            },
             toggleEditCard(context, card) {
                 context.commit('setCardEditing', { stackId: card.stackId, cardId: card.id, value: !card.editing });
             },

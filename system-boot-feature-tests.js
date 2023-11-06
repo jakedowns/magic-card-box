@@ -1,4 +1,5 @@
 const SYSTEM_STACK_ID = '100';
+
 function bootSystem() {
     // verify a stack exists which represents the system
     //if (!store.state.stacks[SYSTEM_STACK_ID]) {
@@ -387,8 +388,22 @@ function bootSystem() {
                 return testStacksAfter.length === 0;
             }
         },
+        
         // Add more feature tests here
+        
         // ... {name, test(i)},
+
+        {
+            name: 'the system can toggle between themes',
+            test(i) {
+                const before = store.state.theme;
+                store.commit('setTheme', store.state.AVAILABLE_THEMES[1]);
+                const after = store.state.theme;
+                return before !== after;
+            }
+        },
+
+
         // Keep this last
         {
             name: 'The system boots without error',
