@@ -8,7 +8,10 @@
     <title>Magic Card Box</title>
     <script src="https://unpkg.com/vue@next"></script>
     <script src="https://unpkg.com/vuex@next"></script>
+    <script src="./magicCardBox.js"></script>
+    <script src="./MCB_Store.js"></script>
     <script src="./system-boot-feature-tests.js"></script>
+    <link rel="stylesheet" href="./magicCardBoxStyles.css">
 </head>
 
 <body>
@@ -22,13 +25,54 @@
             @touchstart="handleTouchStart" 
             @touchend="handleTouchEnd" 
             @touchcancel="handleTouchEnd"
+
+            @click="onBGClicked($event)"
             
             >
 
-            <div ref="contextMenu" class="context-menu" :style="{ top: menuPosition.y + 'px', left: menuPosition.x + 'px' }">
-                <ul>
-                    <li @click="selectMenuItem('Option 1')">Option 1</li>
-                    <li @click="selectMenuItem('Option 2')">Option 2</li>
+            <!-- popup window -->
+            <div class="popup-overlay" v-if="showPopup">
+                <div class="popup">
+                    <div class="popup-inner">
+                        <h1>Merge Stack...</h1>
+                        <p>Choose a stack to merge with...</p>
+                        Available Stacks ({{ Object.keys(stacks).length }})<br/>
+                        <select v-model="selectedStackToMerge">
+                            <option value="">Select a stack to merge</option>
+                            <option value="NEW">New Stack...</option>
+                            <option v-for="([stackId, stack]) in Object.entries(stacks).filter(([_, stack]) => !selectedStacks.includes(stackId))" :value="stackId">
+                                {{ stack.name }}
+                            </option>
+                        </select>
+                        <hr/>
+                        <button @click="setShowPopup(false)">Cancel</button>
+                        <button @click="setShowPopup(false)" 
+                        :disabled="selectedStackToMerge === ''">Merge</button>
+                    </div>
+                </div>
+            </div>
+
+            <div ref="contextMenu" class="context-menu" 
+                :style="{ top: menuPosition.y + 'px', left: menuPosition.x + 'px' }"
+            >
+                <ul class="card-context-menu" v-if="contextMenuContext === 'card'">
+                    <li @click="selectMenuItem('moveSelectedCardsToStack')">Move Cards to Stack...</li>
+                    <li @click="selectMenuItem('deleteSelectedCards')">Delete Selected Cards...</li>
+                </ul>
+                <ul class="stack-context-menu" v-else-if="contextMenuContext === 'stack'">
+                    <li @click="selectMenuItem('mergeSelectedStack')">Merge Stack...</li>
+                    <li @click="selectMenuItem('toggleSelectedStackCollapsed')">Collapse/Expand Stack...</li>
+                    <li @click="selectMenuItem('closeSelectedStack')">Close Stack...</li>
+                </ul>
+                <ul class="global-context-menu" v-else>
+                    <li @click="selectMenuItem('openCommandPalette')">Command Palette...</li>
+                    <li @click="selectMenuItem('collapseAllStacks')">Collapse All Stacks</li>
+                    <li @click="selectMenuItem('expandAllStacks')">Expand All Stacks</li>
+                    <li><hr/></li>
+                    <li @click="selectMenuItem('closeAllStacks')">Close All Stacks</li>
+                    <li @click="selectMenuItem('openAllStacks')">Open All Stacks</li>
+                    <li><hr/></li>
+                    <li @click="selectMenuItem('logout')">Logout</li>
                 </ul>
             </div>
 
@@ -43,11 +87,16 @@
                     <input v-model="newStackName" placeholder="New Stack Name" ref="newStackNameInput">
                     <button type="submit">Add Stack</button>
                 </form>
+                <!-- TODO: hide if all collapsed || all closed || none visible -->
                 <button @click="collapseAll">Collapse All</button>
+                <!-- TODO: hide if all expanded || all closed || none visible -->
                 <button @click="expandAll">Expand All</button>
+                <!-- TODO: hide if all closed || none visible -->
                 <button @click="closeAllStacks">Close All</button>
+                <!-- TODO: hide if none closed -->
                 <button @click="openAllStacks">Open All</button>
                 <br/>
+                <!-- TODO: hide if none closed -->
                 <select v-model="selectedClosedStack">
                     <option value="">Select a closed stack</option>
                     <option v-for="([stackId, stack]) in Object.entries(stacks).filter(([_, stack]) => stack.closed)" :value="stackId">
@@ -64,12 +113,21 @@
 
                 -->
                 <div v-for="([stackId, stack]) in Object.entries(stacks).reverse().filter(([_, stack]) => !stack.closed)"
-                    :key="stackId" class="stack" @click="onStackClicked($event, stackId)" :class="{ 
+                    :data-stack-id="stackId"
+                    :key="stackId" class="stack" 
+                    @click="onStackClicked($event, stackId)" 
+                    :class="{ 
+                        'selected': stack.selected,
                         'collapsed-stack': stack.collapsed,
                         'passing': stack.passing === true,
                         'failing': stack.passing === false,
                         'pending': stack.passing === -1
-                    }" :style="{ height: stack.collapsed ? '50px' : 'auto', }">
+                    }" :style="{ height: stack.collapsed ? '50px' : 'auto', }"
+                    draggable="true"
+                    @dragstart="stackDragStart(stackId)"
+                    @dragover.prevent 
+                    @drop="stackDrop(stackId)"
+                    >
                     <div class="stack-header">
                         <div>
                             <span class="stack-name-unhovered">{{ stack.name }}</span>
@@ -94,17 +152,17 @@
                         </div>
                     </div>
 
-                    <div class="stack-expand-close-control">
-                        <button class="" @click.prevent="toggleCollapse(stackId)">{{ stack.collapsed ? 'Expand' : 'Collapse'
+                    <!-- <div class="stack-expand-close-control">
+                        <button class="" @click.prevent="toggleStackSelected(stackId)" @dblclick.prevent="toggleCollapse(stackId)">{{ stack.collapsed ? 'Expand' : 'Collapse'
                         }}</button>
                         <button @click="setStackClosed({stackId, closed:true})">Close</button>
-                    </div>
+                    </div> -->
                     
                     <div class="stack-cards-section">
                         <div v-if="!stack.collapsed && !Object.entries(stack.cards).length" class="empty-stack-message">
                             Empty Stack <a href="#">Click Here to add a new card</a></div>
                         <!-- <transition-group name="card-animation"> -->
-                            <!-- 
+                        <!-- 
 
                             CARDS
 
@@ -122,9 +180,11 @@
                                         'passing':   stack.cards[cardID.toString()]?.passing === true,
                                         'failing':   stack.cards[cardID.toString()]?.passing === false
                                     }" 
-                                    @click="toggleCardSelected(stack.cards[cardID.toString()])" 
-                                    @dragstart="dragStart(stack.cards[cardID.toString()], stackId)"
-                                    @dragover.prevent @drop="drop(stack.cards[cardID.toString()], stackId)"
+                                    @click="toggleCardSelected($event,stack.cards[cardID.toString()])" 
+                                    @dragstart.prevent="dragStart(stack.cards[cardID.toString()], stackId)"
+                                    @dragover.prevent 
+                                    @drop.prevent="drop(stack.cards[cardID.toString()], stackId)"
+                                    :data-card-id="cardID"
                                 >
                                 <!-- <pre>cardID {{cardID}} index {{index}}</pre> -->
                                 <!-- <div>position: {{stack.cards[cardID.toString()]?.position}}</div> -->
@@ -169,980 +229,10 @@
         </div>
     </div>
 
-    <script>
-        const TAG_HIDE_COMPLETE_TOGGLE = 100;
-        const TAG_TEST_STACK = 101;
-        const TAG_TEST_CARD = 102;
-        const TAG_CARD_IS_STACK = 103;
-        const TAG_NAME_MAP = {
-            TAG_HIDE_COMPLETE_TOGGLE: 'Hide Complete Toggle',
-            TAG_TEST_STACK: 'Test Stack',
-            TAG_TEST_CARD: 'Test Card',
-            TAG_CARD_IS_STACK: 'Card is Stack'
-        }
-        class Stack {
-            constructor({ 
-                id, 
-                name, 
-                cards, 
-                card_order, 
-                collapsed, 
-                closed, 
-                tags,
-                passing
-             }) {
-                this.id = id;
-                this.name = name;
-                this.cards = cards;
-                this.card_order = card_order;
-                this.collapsed = collapsed ?? false;
-                this.closed = closed ?? false;
-                this.tags = tags ?? [];
-                this.dirty = true; // Initialize dirty flag to true
-                this.statusCountsCache = null; // Initialize cache to null
-                this._passing = passing ?? -1; // default to pending status
-            }
-
-            flagDirty() {
-                this.dirty = true;
-            }
-
-            // see: passFailPendingString 
-            get statusCounts() {
-                if (this.dirty || this.statusCountsCache === null) {
-                    let countPassing = 0;
-                    let countFailing = 0;
-                    let countPending = 0;
-                    let countErrors = 0;
-                    for (let id in this.cards) {
-                        const card = this.cards[id];
-
-                        if (card.passing === true) { countPassing++; }
-                        else if (card.passing === false) { countFailing++; }
-                        else if (card.passing === -1) { countPending++; }
-
-                        if (card.error) { countErrors++; }
-                    }
-                    this.statusCountsCache = {
-                        countPassing,
-                        countFailing,
-                        countPending,
-                        countErrors
-                    };
-                    this.dirty = false; // Reset dirty flag
-                }
-                return this.statusCountsCache;
-            }
-
-            get passing() {
-                // Compute the 'passing' value based on the children
-                // Iterate over the children and check if they're passing
-                // Return the computed value
-                let foundPending = false;
-                // find the first passing === false
-                let foundFailing = false;
-                if(!this.card_order.length){
-                    // use internal flag
-                    return this._passing;
-                }
-                for (let id in this.cards) {
-                    const card = this.cards[id];
-                    if (card.passing === -1 && !card.completed_at) {
-                        foundPending = true;
-                    }
-                    else if (card.passing === false) {
-                        foundFailing = true;
-                        break;
-                    }
-                }
-                return foundFailing ? false : foundPending ? -1 : true;
-            }
-        }
-        const { createStore } = Vuex;
-        const DEFAULT_STATE = {
-            // view options
-            stackColumns: 2,
-            cardColumns: 2,
-
-            // tagging
-            tag_cache: {},
-
-            stacks: {},
-            stack_order: [],
-            newStackName: '',
-            newCardNames: {},
-            focusedStackIds: [],
-            focusedCardIds: [],
-            skip_ask_before_delete: false
-        }
-        const store = Vuex.createStore({
-            state() { return DEFAULT_STATE; },
-            mutations: {
-                addStack(s, { name, forceId, tags, collapsed, closed }) {
-                    const id = forceId ?? Date.now();
-                    s.stacks[id.toString()] = new Stack({
-                        id,
-                        name,
-                        cards: {},
-                        card_order: [],
-                        collapsed: collapsed ?? false,
-                        closed: closed ?? false,
-                        tags: tags ?? [],
-                        passing: -1 // pending by default
-                    });
-                    s.stack_order.push(id.toString());
-                    setTimeout(() => {
-                        document.querySelector(`.newCardNameInput-${id}`)?.focus();
-                    }, 100);
-                },
-                updateTagCache(s, {tags}){
-                    // update our set of s.tag_cache to include passed in tags
-                    tags.forEach(tag => {
-                        if (!s.tag_cache[tag]) {
-                            s.tag_cache[tag] = 1;
-                        }
-                        else {
-                            s.tag_cache[tag]++;
-                        }
-                    });
-                },
-                stackAddTags(s, { stackId, tags }) {
-                    s.stacks[stackId].tags = [...new Set([...s.stacks[stackId].tags, ...tags])];
-                },
-                stackRemoveTags(s, { stackId, tags }) {
-                    s.stacks[stackId].tags = s.stacks[stackId].tags.filter(t => !tags.includes(t));
-                },
-                setStackClosed(s, { stackId, closed }) {
-                    s.stacks[stackId.toString()].closed = closed;
-                },
-                setStackColumns(s, count) {
-                    s.stackColumns = count
-                },
-                setCardColumns(s, count) {
-                    s.cardColumns = count
-                },
-                setStackFocused(s, { stackId, focused }) {
-                    s.stacks[stackId.toString()].focused = focused;
-                },
-                deleteStackSilent(s, id) {
-                    delete s.stacks[id.toString()];
-                    // remove from stack_order
-                    s.stack_order.splice(s.stack_order.indexOf(id.toString()), 1);
-                },
-                deleteStack(s, id) {
-                    if (window.confirm('Are you sure you want to delete stack \n\n' + s.stacks[id.toString()].name)) {
-                        delete s.stacks[id.toString()];
-                        // remove from stack_order
-                        s.stack_order.splice(s.stack_order.indexOf(id.toString()), 1);
-                    }
-                },
-                addCard(s, { stackId, content }) {
-                    const card = {
-                        id: Date.now(),
-                        content,
-                        editing: false,
-                        stackId,
-                        position: s.stacks[stackId].cards.length,
-                        selected: false,
-                        passing: -1, // default to pending status
-                        tags: []
-                    };
-
-                    s.stacks[stackId.toString()].cards[card.id] = card;
-                    s.stacks[stackId.toString()].card_order.push(card.id);
-
-                    s.newCardNames[stackId.toString()] = '';
-                },
-                addSubstackAsCard(s, {parentStackId, childStackId}){
-                    // add the child stack as a card to the parent stack
-                    const card = {
-                        id: Date.now(),
-                        content: s.stacks[childStackId].name,
-                        editing: false,
-                        stackId: parentStackId,
-                        referenceStackId: childStackId,
-                        position: s.stacks[parentStackId].cards.length,
-                        selected: false,
-                        passing: -1, // default to pending status
-                        // flag as substack for special rendering
-                        tags: [TAG_CARD_IS_STACK]
-                    };
-                    s.stacks[parentStackId.toString()].cards[card.id] = card;
-                    s.stacks[parentStackId.toString()].card_order.push(card.id);
-                },
-                setCardFocused(s, { card, focused }) {
-                    s.stacks[card.stackId].cards[card.id].focused = focused;
-                },
-                setCardCompleted(s, { card, state }) {
-                    console.log('setCardCompleted', { card, state })
-
-                    s.stacks[card.stackId.toString()].cards[card.id.toString()].completed_at = state ? Date.now() : null;
-                    console.log('set CompletedAt to:', s.stacks[card.stackId.toString()].cards[card.id.toString()].completed_at)
-                },
-                setCardPassingStatus(s, { card, passing }) {
-                    // we should be passing in an index to the stack card array here :G
-                    //card.passing = passing;
-                    if(!s.stacks[card.stackId.toString()]){
-                        console.error('no stack for card?', {card, stack_ids:Object.keys(s.stacks)});
-                        throw new Error("stack not found for card")
-                    }
-                    s.stacks[card.stackId].cards[card.id].passing = passing;
-                    // bust cache of stack card status counts
-                    s.stacks[card.stackId].flagDirty();
-                },
-                setCardError(s, { card, error }) {
-                    s.stacks[card.stackId].cards[card.id].error = error;
-                },
-                deleteCard(s, { stackId, cardID }) {
-                    if (s.skip_ask_before_delete || confirm('Are you sure?!')) {
-                        delete s.stacks[stackId.toString()].cards[cardID.toString()]
-                        // remove from card_order array
-                        s.stacks[stackId.toString()].card_order.splice(s.stacks[stackId.toString()].card_order.indexOf(cardID), 1);
-                        s.stacks[stackId.toString()].flagDirty();
-                    }
-                },
-                toggleCollapse(s, id) {
-                    console.warn('toggleCollapse before:', {
-                        id,
-                        collapsed: s.stacks[id.toString()]?.collapsed
-                    })
-                    s.stacks[id.toString()].collapsed = !s.stacks[id.toString()].collapsed;
-                    console.warn('>>> toggleCollapse after:', {
-                        id,
-                        collapsed: s.stacks[id.toString()]?.collapsed
-                    })
-                },
-                collapseAll(s) {
-                    for (let key of Object.keys(s.stacks)) {
-                        s.stacks[key].collapsed = true;
-                    }
-                },
-                expandAll(s) {
-                    for (let key of Object.keys(s.stacks)) {
-                        s.stacks[key].collapsed = false;
-                    }
-                },
-                moveCard(s, { fromStackId, toStackId, cardId }) {
-                    const cardIndex = s.stacks[fromStackId].card_order.findIndex(c => c.id === cardId);
-                    if (cardIndex > -1) {
-                        const [card] = s.stacks[fromStackId].card_order.splice(cardIndex, 1);
-                        s.stacks[toStackId].card_order.push(card);
-                    }
-                },
-                setCardSelected(s, { card, status }) {
-                    return;
-                    const stack = s.stacks[card.stackId.toString()];
-                    if (stack) {
-                        Object.entries(stack.cards).forEach(c => stack[c.id].selected = status && c.id === card.id);
-                    }
-                },
-                setCardPosition(s, { card, position }) {
-                    const stack = s.stacks[card.stackId.toString()];
-                    if(!stack){
-                        throw new Error("stack not found for card " + `c:${card.id} s:${card.stackId}`)
-                    }
-                    // find the card in the stack
-                    const cardIndex = stack.card_order.findIndex(cid => cid.toString() === card.id.toString());
-                    if(cardIndex === -1){
-                        throw new Error("card not found in stack " + `c:${card.id} s:${card.stackId}`)
-                    }
-                    // remove the card from the stack
-                    stack.card_order.splice(cardIndex, 1);
-                    // insert the card at the new position
-                    stack.card_order.splice(position, 0, card.id);
-                    // renormalize the positions
-                    stack.card_order.forEach((c, i) => stack.cards[c.toString()].position = i);
-                },
-                setCardEditing(s, { stackId, cardId, value }) { console.warn(arguments); const card = s.stacks[stackId].cards[cardId]; if (card) { card.editing = value; } },
-                setCardContent(s, { stackId, cardId, content }) { const card = s.stacks[stackId].cards.find(c => c.id === cardId); if (card) card.content = content; },
-                setNewStackName(s, newName) { s.newStackName = newName; },
-                setNewCardName(s, { stackId, newName }) { s.newCardNames[stackId.toString()] = newName; },
-            },
-            actions: {
-                toggleEditCard(context, card) {
-                    context.commit('setCardEditing', { stackId: card.stackId, cardId: card.id, value: !card.editing });
-                },
-                toggleCardSelected(context, card) {
-                    if(!card){
-                        // we might've just repsonded to a Delete button click and the card is gone
-                        return;
-                    }
-                    //console.warn('selected',{card});
-                    context.commit('setCardSelected', { card, status: !card.selected });
-                },
-                saveStateToLocalStorage() {
-                    localStorage.setItem('state', JSON.stringify(this.state));
-                },
-                loadStateFromLocalStorage() {
-                    const state = localStorage.getItem('state');
-                    if (state) this.replaceState({ ...DEFAULT_STATE, ...JSON.parse(state) });
-
-                    if (!this.state.stack_order) { this.state.stack_order = []; }
-
-                    // verify cards have .stackId defined
-                    for (let id in this.state.stacks) {
-                        let s = this.state.stacks[id.toString()];
-                        // legacy fix, if s.cards is an array,
-                        // convert to an object keyed by card.id
-                        if (Array.isArray(s.cards)) {
-                            const cards = {};
-                            s.cards.forEach(c => cards[c.id] = c);
-                            s.cards = cards;
-                        }
-                        //s.cards.forEach(c => c.stackId = id.toString());
-                        s.card_order = s.card_order ?? s.cards.map(c => c.id);
-                    }
-
-                    // make sure each dehydrated stack object turns into a hydrated Stack class instance
-                    for (let id in this.state.stacks) {
-                        this.state.stacks[id.toString()] = new Stack(this.state.stacks[id.toString()]);
-                        this.state.stacks[id.toString()].tags = this.state.stacks[id.toString()].tags ?? [];
-
-
-                        // make sure each card has a .tags array
-                        for (let cardId in this.state.stacks[id.toString()].cards) {
-                            const card = this.state.stacks[id.toString()].cards[cardId];
-                            card.tags = card.tags ?? [];
-                        }
-
-                        // make sure there's an entry in the .stack.card_order for all cards
-                        // (see if any cards are missing from the card_order array and add them)
-                        const cardIds = Object.keys(this.state.stacks[id.toString()].cards);
-                        cardIds.forEach(cardId => {
-                            if (!this.state.stacks[id.toString()].card_order.includes(cardId)) {
-                                this.state.stacks[id.toString()].card_order.push(cardId);
-                            }
-                        });
-
-                        // make sure card positions match the .stack.card_order index
-                        let orphanedCardIds = [];
-                        this.state.stacks[id.toString()].card_order.forEach((cardId, index) => {
-                            // if the card isn't present, flag it for removal from the card_order array
-                            if (!this.state.stacks[id.toString()].cards[cardId]) {
-                                orphanedCardIds.push(cardId);
-                            }
-                            else {
-                                // set the card position to match the index in the card_order array
-                                this.state.stacks[id.toString()].cards[cardId].position = index;
-                            }
-                        });
-                        // clean up orphans
-                        this.state.stacks[id.toString()].card_order = this.state.stacks[id.toString()].card_order.filter(cardId => !orphanedCardIds.includes(cardId));
-                    }
-
-                    if(!window.bootSystem){
-                        console.warn('bootSystem not found, skipping boot');
-                        return;
-                    }
-                    // boot system
-                    window.bootSystem();
-                    // hide loading div
-                    document.querySelector('.loading').style.display = 'none';
-                    // show #app div
-                    document.querySelector('#app').style.display = '';
-                },
-                deleteStackSilent(context, stackId) {
-                    context.commit('deleteStackSilent', stackId);
-                }
-            }
-        });
-
-        // save to local storage on every mutation
-        store.subscribe((mutation, state) => {
-            store.dispatch('saveStateToLocalStorage');
-
-            // console.warn('mut', mutation.type);//{mutation, state})
-
-            switch (mutation.type) {
-                case 'addStack':
-                case 'addCard':
-                case 'stackAddTags':
-                case 'cardAddTags':
-                    // update tag_cache with any new tags
-                    store.commit('updateTagCache', {tags: mutation.payload?.tags ?? []});
-                    break;
-            }
-
-            if (mutation.type === 'addCard') {
-                const { stackId } = mutation.payload;
-                //console.log('addCardPayload', { payload: mutation.payload })
-                state.newCardNames[stackId + ''] = '';
-                // the text input isn't updating to reflect the model change
-                // let's force it empty..
-
-            }
-        });
-
-        const app = Vue.createApp({
-            setup() {
-                // Access the store instance with the `useStore` hook
-                const store = Vuex.useStore();
-                const { computed, ref, reactive, 
-                    watch, onMounted, onBeforeUnmount } = Vue;
-                const stacks = computed(() => store.state.stacks);
-                const newCardNames = computed(() => store.state.newCardNames);
-                const dragging = ref({ cardId: null, fromStackId: null });
-                const newStackNameInput = ref(null);
-                const newStackName = ref('');
-
-                const passFailPendingString = computed(() => {
-                    return (stack) => {
-                        const counts = stack.statusCounts;
-                        if(!counts){
-                            return '';
-                        }
-                        return `pass: ${counts.countPassing} | fail: ${counts.countFailing} | pending: ${counts.countPending} | err: ${counts.countErrors}`;
-                    }
-                })
-
-                function dragStart(card, stackId) {
-                    dragging.value = { card, fromStackId: stackId };
-                }
-
-                function drop(onCard) {
-                    if (dragging.value.cardId !== null) {
-                        console.warn('drop', {
-                            dragging: JSON.parse(JSON.stringify(dragging.value)),
-                            onCard: JSON.parse(JSON.stringify(onCard)),
-                            fromPosition: dragging.value.card.position,
-                            toPosition: onCard.position
-                        })
-                        // if we changed stacks, update the card's stackId
-                        const fromStackId = dragging.value.fromStackId;
-                        if(fromStackId !== onCard.stackId){
-                            store.commit('moveCard', {
-                                fromStackId,
-                                toStackId: onCard.stackId,
-                                cardId: dragging.value.card.id
-                            });
-                        }
-                        // set the card's position within the stack
-                        store.commit('setCardPosition', {
-                            card: {
-                                id: dragging.value.card.id,
-                                stackId: onCard.stackId
-                            },
-                            position: onCard.position - 1
-                        });
-                        // clear the dragging state
-                        dragging.value = { card: null, fromStackId: null };
-                    }
-                }
-
-                // Create computed properties for each piece of state you want to map
-                // Computed property for stackColumns with getter and setter
-                const stackColumnsInput = computed({
-                    get: () => store.state.stackColumns,
-                    set: (value) => store.commit('setStackColumns', Number(value))
-                });
-
-                // Computed property for cardColumns with getter and setter
-                const cardColumnsInput = computed({
-                    get: () => store.state.cardColumns,
-                    set: (value) => store.commit('setCardColumns', Number(value))
-                });
-
-                const showContextMenu = ref(false);
-                const menuPosition = ref({ x: 0, y: 0 });
-                let touchStartTimer = null;
-                const contextMenu = ref(null);
-
-                const openContextMenu = (event) => {
-                    event.preventDefault();
-                    showContextMenu.value = true;
-                    menuPosition.value = { x: event.clientX, y: event.clientY };
-                    contextMenu.value.style.display = 'block';
-                };
-
-                const handleTouchStart = (event) => {
-                    event.preventDefault();
-                    touchStartTimer = setTimeout(() => {
-                    showContextMenu.value = true;
-                    const touch = event.touches[0];
-                    menuPosition.value = { x: touch.clientX, y: touch.clientY };
-                    contextMenu.value.style.display = 'block';
-                    }, 500); // 500 ms for long-press
-                };
-
-                const handleTouchEnd = () => {
-                    clearTimeout(touchStartTimer);
-                };
-
-                const selectMenuItem = (action) => {
-                    console.log('Selected:', action);
-                    showContextMenu.value = false;
-                    contextMenu.value.style.display = 'none';
-                };
-
-                const closeContextMenu = (event) => {
-                    if (showContextMenu.value && (!contextMenu.value || !contextMenu.value.contains(event.target))) {
-                    showContextMenu.value = false;
-                    contextMenu.value.style.display = 'none';
-                    }
-                };
-
-                onMounted(async () => {
-                    // don't execute this until window.bootSystem is defined
-                    while(typeof window.bootSystem === 'undefined'){
-                        console.warn('waiting for window.bootSystem to be defined');
-                        // wait 1 second
-                        await new Promise((resolve)=>setTimeout(resolve, 1000));
-                    }
-                    store.dispatch('loadStateFromLocalStorage');
-                    newStackNameInput.value.focus();
-
-                    window.addEventListener('click', closeContextMenu);
-                });
-
-                onBeforeUnmount(() => {
-                    window.removeEventListener('click', closeContextMenu);
-                });
-
-                /* Vue 3 Composition API Mutation Mappings */
-
-                const deleteStack = (stackId) => {
-                    store.commit('deleteStack', stackId);
-                }
-                const deleteStacksWithTags = (tags, maxDepth = 1) => {
-                    // find all stacks with tags
-                    const stacks = Object.values(store.state.stacks).filter(s => s.tags.includes(tags));
-                    // delete each stack
-                    stacks.forEach(s => store.commit('deleteStack', s.id));
-                }
-                const addCard = (payload) => {
-                    store.commit('addCard', payload);
-                }
-                const deleteCard = (payload) => {
-                    store.commit('deleteCard', payload);
-                }
-
-                const toggleCollapse = (stackId) => {
-                    store.commit('toggleCollapse', stackId);
-                }
-                const collapseAll = () => {
-                    store.commit('collapseAll');
-                }
-                const expandAll = () => {
-                    store.commit('expandAll');
-                }
-                const moveCard = (payload) => {
-                    store.commit('moveCard', payload);
-                }
-
-                const setCardEditing = (payload) => {
-                    store.commit('setCardEditing', payload);
-                }
-                const setCardContent = (payload) => {
-                    store.commit('setCardContent', payload);
-                }
-                const setNewStackName = (payload) => {
-                    store.commit('setNewStackName', payload);
-                }
-                const setNewCardName = (payload) => {
-                    store.commit('setNewCardName', payload);
-                }
-
-                const setCardSelected = (payload) => {
-                    store.commit('setCardSelected', payload);
-                }
-                const setCardCompleted = (payload) => {
-                    store.commit('setCardCompleted', payload);
-                }
-                const setStackClosed = (payload) => {
-                    store.commit('setStackClosed', payload);
-                }
-
-                const setStackFocused = (payload) => {
-                    store.commit('setStackFocused', payload);
-                }
-                const setCardFocused = (payload) => {
-                    store.commit('setCardFocused', payload);
-                }
-
-                const selectedClosedStack = ref('');
-
-                const closeAllStacks = ()=>{
-                    for(let id in stacks.value){
-                        setStackClosed({ 
-                            stackId: id, 
-                            closed: true });
-                    }
-                }
-                const openAllStacks = ()=>{
-                    for(let id in stacks.value){
-                        setStackClosed({ 
-                            stackId: id, 
-                            closed: false });
-                    }
-                }
-
-                const openSelectedStack = ()=>{
-                    console.warn('openSelectedStack', {
-                        selectedClosedStack: selectedClosedStack.value
-                    })
-                    if (selectedClosedStack.value) {
-                        setStackClosed({ 
-                            stackId: selectedClosedStack.value, 
-                            closed: false });
-                    }
-                    // reset
-                    selectedClosedStack.value = '';
-                }
-
-                
-                watch(selectedClosedStack, (newVal, oldVal)=>{
-                    // when the selected closed stack changes to a value other than ''
-                    // call openSelectedStack
-                    if(newVal && newVal !== ''){
-                        openSelectedStack();
-                    }
-                })
-
-                return {
-                    stacks,
-                    newCardNames,
-                    passFailPendingString,
-                    // View Options
-                    cardColumnsInput,
-                    stackColumnsInput,
-                    newStackName,
-                    ...Vuex.mapActions([
-                        'toggleEditCard', 'toggleCardSelected'
-                    ]),
-                    addStack() {
-                        store.commit('addStack', { name: newStackName.value });
-                        //newStackNameInput.value.focus();
-                    },
-
-                    openContextMenu,
-                    handleTouchStart,
-                    handleTouchEnd,
-                    selectMenuItem,
-                    menuPosition,
-                    contextMenu,
-
-
-                    // mapped mutations
-                    deleteStack,
-                    addCard,
-                    deleteCard,
-                    toggleCollapse,
-                    collapseAll,
-                    expandAll,
-                    moveCard,
-                    setCardEditing,
-                    setCardContent,
-                    setNewStackName,
-                    setNewCardName,
-                    setCardSelected,
-                    setCardCompleted,
-                    setStackClosed,
-                    setStackFocused,
-                    setCardFocused,
-
-                    openAllStacks,
-                    closeAllStacks,
-
-                    dragStart,
-                    drop,
-                    newStackNameInput,
-                    blockClick(e) {
-                        e.stopPropagation();
-                    },
-                    onStackClicked(e, stackId) {
-                        console.log('onStackClicked', stackId)
-                        //return;
-
-                        // if we clicked on or within a .card class element
-                        // we want to toggle SelectCard instead
-                        if (e.target.classList.contains('card')) {
-                            // get the card id from the data-card-id attribute
-                            const cardId = e.target.dataset.cardId;
-                            // get the card from the store
-                            const card = store.state.stacks[stackId].cards[cardId];
-                            // toggle the card's selected state
-                            store.commit('setCardSelected', { card, status: !card.selected });
-                            return;
-                        }
-
-                        // if the event didn't originate ON or WITHIN a button or input or textarea
-                        // then we can assume it's a click on the stack
-                        // and we can toggleCollapse
-                        if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') {
-                            this.toggleCollapse(stackId);
-                        } else {
-                            console.warn('onStackClicked', {
-                                tagName: e.target.tagName,
-                                target: e.target
-                            })
-                        }
-
-                        // if(store.state?.stacks?.[stackId]?.collapsed){
-                        //     e.preventDefault();
-                        //     this.toggleCollapse(stackId);
-                        // }
-                    },
-                    selectedClosedStack,
-
-                    openSelectedStack,
-                    TAG_HIDE_COMPLETE_TOGGLE,
-                    TAG_TEST_STACK,
-                    TAG_TEST_CARD,
-                    TAG_NAME_MAP,
-                };
-            }
-        });
-        window.app = app;
-        app.use(store);
-        app.mount('#app');
-    </script>
-
     <style>
-        html,
-        body {
-            background-color: black;
-            color: white;
-        }
-
-        .stacks-container {
-            /* display: flex;
-    flex-direction: row; */
-
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(calc(100vw / var(--stack-columns)), 1fr));
-            grid-gap: 10px;
-            grid-auto-flow: dense;
-        }
-
-        .stack {
-            display: flex;
-            position: relative;
-            flex-direction: column;
-            /* flex-basis: 33vw;  */
-            min-width: 10vw;
-            border: 1px solid purple;
-            padding: 10px;
-            border-radius: 5px;
-            margin: 10px;
-            grid-row: span 100;
-        }
-
-        .stack.collapsed-stack {
-            grid-row: span 1;
-        }
-
-        .stack-controls,
-        .stack-header-details {
-            z-index: 999;
-            position: absolute;
-            top: 0;
-            border: 10px solid black;
-            left: 0;
-            margin: 0;
-            border-radius: 5px;
-            width: 100%;
-            height: auto;
-            background-color: rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(10px);
-            display: block;
-        }
-
-        .stack-controls {
-            top: 200px;
-        }
-
-        .stack-header-details {
-            top: 0px;
-        }
-
-        .stack-controls,
-        .stack-header-details {
-            opacity: 0;
-        }
-
-        .stack-controls:hover {
-            opacity: 1;
-        }
-
-        .stack:not(.collapsed-stack) .stack-header-details:hover {
-            opacity: 1;
-        }
-        .stack:not(.collapsed-stack) .stack-cards-section:hover + .stack-controls {
-            opacity: 1;
-            display: block;
-        }
-
-        .stack.collapsed-stack .stack-controls {
-            display: none;
-        }
-
-        .stack.stack:not(.collapsed-stack) .stack-name-unhovered {
-            display: inline;
-            font-size: 24px;
-            font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
-        }
-
-        .stack.stack:not(.collapsed-stack):hover .stack-name-unhovered {
-            display: none;
-        }
-
-        .stack.collapsed-stack>.card:not(:first-child) {
-            display: none;
-        }
-
-        .stack.pending {
-            border-color: yellow;
-            background-color: darkgoldenrod;
-        }
-
-        .stack.passing {
-            border-color: lightgreen;
-            background-color: darkolivegreen;
-        }
-
-        .stack.failing {
-            border-color: red;
-            background-color: #250D07;
-        }
-
-        .stack.collapsed-stack .stack-cards-section {
-            display: none;
-        }
-
-        .stack:not(.collapsed-stack):hover {
-            /* padding-top: 200px; */
-        }
-
-        .stack .stack-expand-close-control {
-            display:none;
-        }
-        .stack:hover .stack-expand-close-control {
-            display:block;
-        }
-
-        .stack .stack-cards-section {
-            display: grid;
-            grid-template-columns: repeat(var(--card-columns, 1), minmax(0, 1fr));
-            grid-gap: calc(10px / var(--card-columns));
-            grid-template-columns: repeat(var(--card-columns, 1), minmax(0, 1fr));
-        }
-
-        .card {
-            font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
-            font-size: 12px;
-            text-align: left;
-            min-height: 50px;
-            padding: 5px;
-            border: 1px solid #ccc;
-            margin: 5px;
-            width: calc(100% - 60px);
-            cursor: pointer;
-            user-select: none;
-            margin: 10px;
-            border-radius: 5px;
-            border: 1px solid black;
-            position: relative;
-
-            /* dynamic flex-basis for fitting more card columns within a stack */
-            flex-basis: calc(100% / var(--card-columns));
-        }
-
-        .card-error {
-            color: red;
-            border: 3px solid red;
-            background-color: white;
-            ;
-        }
-
-        .card-controls {
-            /*margin-top: 10px;*/
-            opacity: 0;
-            transition: opacity 0.5s, height 0.5s, filter 0.5s;
-            overflow: hidden;
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: rgba(0, 0, 0, 0.5);
-            -webkit-backdrop-filter: blur(10px);
-            backdrop-filter: blur(10px);
-        }
-
-        .card:hover {
-            border-color: steelblue;
-        }
-
-        .card:hover .card-controls {
-            opacity: 1;
-        }
-
-        .card.passing {
-            border-color: lightgreen;
-            background-color: darkolivegreen;
-        }
-
-        .card.pending {
-            border-color: yellow;
-            background-color: darkgoldenrod;
-        }
-
-        .card.failing {
-            border-color: red;
-            background-color: darkred;
-        }
-
-        .card.selected,
-        .card.editing {
-            background-color: yellow;
-        }
-
-        .card.completed {
-            background-color: rgb(20, 43, 20);
-        }
-
-        .drag-over {
-            border-style: dashed;
-        }
-
-        .controls {
-            margin-bottom: 10px;
-        }
-
-        .pull-right {
-            float: right;
-        }
-
-        .context-menu {
-            position: absolute;
-            z-index: 1000;
-            border: 1px solid #ccc;
-            background-color: #fff;
-            color: black;
-            box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.2);
-            display: none;
-        }
-
-        .context-menu.active {
-            display: block;
-        }
-
-        .context-menu ul {
-            list-style: none;
-            margin: 0;
-            padding: 0;
-        }
-
-        .context-menu ul li {
-            padding: 10px;
-            cursor: pointer;
-        }
-
-        .context-menu ul li:hover {
-            background-color: #f0f0f0;
-        }
+       html, body {
+        background-color: black;
+       }
     </style>
 
 </body>

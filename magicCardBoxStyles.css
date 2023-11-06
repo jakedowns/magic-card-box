@@ -1,0 +1,285 @@
+html,
+body {
+    background-color: black;
+    color: white;
+}
+
+.stacks-container {
+    /* display: flex;
+flex-direction: row; */
+
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(calc(100vw / var(--stack-columns)), 1fr));
+    grid-gap: 10px;
+    grid-auto-flow: dense;
+}
+
+.stack {
+    display: flex;
+    position: relative;
+    flex-direction: column;
+    /* flex-basis: 33vw;  */
+    min-width: 10vw;
+    border: 1px solid purple;
+    padding: 10px;
+    border-radius: 5px;
+    margin: 10px;
+    grid-row: span 100;
+}
+
+.stack.collapsed-stack {
+    grid-row: span 1;
+}
+
+.stack-controls,
+.stack-header-details {
+    z-index: 999;
+    position: absolute;
+    top: 0;
+    border: 10px solid black;
+    left: 0;
+    margin: 0;
+    border-radius: 5px;
+    width: 100%;
+    height: auto;
+    background-color: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(10px);
+    display: block;
+}
+
+.stack-controls {
+    top: 200px;
+}
+
+.stack-header-details {
+    top: 20px;
+}
+
+.stack-controls,
+.stack-header-details {
+    opacity: 0;
+}
+
+.stack-controls:hover {
+    opacity: 1;
+}
+
+.stack:not(.collapsed-stack) .stack-header-details:hover {
+    opacity: 1;
+}
+.stack:not(.collapsed-stack) .stack-cards-section:hover + .stack-controls {
+    opacity: 1;
+    display: block;
+}
+
+.stack.collapsed-stack .stack-controls {
+    display: none;
+}
+
+.stack.stack:not(.collapsed-stack) .stack-name-unhovered {
+    display: inline;
+    font-size: 24px;
+    font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+}
+
+/* .stack.stack:not(.collapsed-stack):hover .stack-name-unhovered {
+    display: none;
+} */
+
+.stack.collapsed-stack>.card:not(:first-child) {
+    display: none;
+}
+
+.stack.pending {
+    border-color: yellow;
+    background-color: darkgoldenrod;
+}
+
+.stack.passing {
+    border-color: lightgreen;
+    background-color: darkolivegreen;
+}
+
+.stack.failing {
+    border-color: red;
+    background-color: #250D07;
+}
+
+.stack.collapsed-stack .stack-cards-section {
+    display: none;
+}
+
+.stack:not(.collapsed-stack):hover {
+    /* padding-top: 200px; */
+}
+
+.stack .stack-expand-close-control {
+    display:none;
+}
+.stack:hover .stack-expand-close-control {
+    display:block;
+}
+
+.stack .stack-cards-section {
+    display: grid;
+    grid-template-columns: repeat(var(--card-columns, 1), minmax(0, 1fr));
+    grid-gap: calc(2px / var(--card-columns));
+    grid-template-columns: repeat(var(--card-columns, 1), minmax(0, 1fr));
+    position: relative;
+}
+
+.card {
+    font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+    font-size: 12px;
+    text-align: left;
+    min-height: 25px;
+    padding: 5px;
+    border: 1px solid #ccc;
+    margin: 3px;
+    margin-left: 0;
+    margin-right: 0;
+    width: 100%;
+    cursor: pointer;
+    user-select: none;
+    border-radius: 5px;
+    border: 1px solid black;
+    position: relative;
+    box-sizing: border-box;
+
+    /* dynamic flex-basis for fitting more card columns within a stack */
+    flex-basis: calc(100% / var(--card-columns));
+}
+
+.card-error {
+    color: red;
+    border: 3px solid red;
+    background-color: white;
+    ;
+}
+
+.card-controls {
+    /*margin-top: 10px;*/
+    opacity: 0;
+    transition: opacity 0.5s, height 0.5s, filter 0.5s;
+    overflow: hidden;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+}
+
+.card:hover {
+    border-color: steelblue;
+}
+
+.card:hover .card-controls {
+    opacity: 1;
+}
+
+.card.passing {
+    border-color: lightgreen;
+    background-color: darkolivegreen;
+}
+
+.card.pending {
+    border-color: yellow;
+    background-color: darkgoldenrod;
+}
+
+.card.failing {
+    border-color: red;
+    background-color: darkred;
+}
+
+.card.editing {
+    background-color: yellow;
+}
+
+.stack.selected,
+.card.selected {
+    border-width: 10px;
+}
+
+.card.completed {
+    background-color: rgb(20, 43, 20);
+}
+
+.drag-over {
+    border-style: dashed;
+}
+
+.controls {
+    margin-bottom: 10px;
+}
+
+.pull-right {
+    float: right;
+}
+
+.context-menu {
+    position: absolute;
+    z-index: 1000;
+    border: 1px solid #ccc;
+    background-color: #fff;
+    color: black;
+    box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.2);
+    display: none;
+}
+
+.context-menu.active {
+    display: block;
+}
+
+.context-menu ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.context-menu ul li {
+    padding: 10px;
+    cursor: pointer;
+}
+
+.context-menu ul li:hover {
+    background-color: #f0f0f0;
+}
+
+/* 
+<div class="popup-overlay" v-if="showPopup">
+                <div class="popup">
+                    <div class="popup-inner">
+                        <h1>POPUP!</h1>
+                    </div>
+                </div>
+            </div>
+
+*/
+.popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.popup {
+    background-color: black;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+}
+.popup-inner {
+    max-width: 500px;
+    margin: 0 auto;
+}
