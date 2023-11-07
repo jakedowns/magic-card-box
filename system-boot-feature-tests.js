@@ -9,6 +9,14 @@ It's a fuzzy future, but we're having fun exploring the possibilities
 the bicycle for the mind just became the jetpack for the brain
 `
 
+class FieldNotPresentError extends Error {
+    constructor(message, extras) {
+        super(message);
+        this.name = "FieldNotPresentError";
+        this.name += "\n extras: " + JSON.stringify(extras);
+    }
+}
+
 class MarqueeConfig {
     text = 'hello world'
     speed = 1
@@ -115,7 +123,7 @@ const FEATURE_TEST_SUBFIELD_IDS = {
     FT_SF_ASYNC_EXAMPLE: 'FT_SF_ASYNC_EXAMPLE',
 }
 
-let FEATURE_TEST_SUBFIELD_TAGS = {}
+let FEATURE_TEST_SUBFIELD_TAGS = {};
 
 const FEATURE_TEST_SUBFIELD_CONFIGS = {
     FT_SF_MARQUEE: {
@@ -221,6 +229,7 @@ async function bootSystem() {
         })
     }, 100);
 
+    // OnConstsReady
     C = store.state.CONST;
 
     FEATURE_TEST_SUBFIELD_TAGS = {
@@ -317,6 +326,17 @@ async function bootSystem() {
 
 
     for (const [key, value] of Object.entries(FEATURE_TEST_SUBFIELD_IDS)) {
+
+        const tagsArray = [
+            ...FEATURE_TEST_SUBFIELD_TAGS[key], 
+            ...[
+                C.TAGS.TEST_TAG,
+                // TODO: tags that can decompose into a group of tags
+                // like a tag could indicate that it itself requires other tags
+                C.TAGS.EXECUTABLE
+            ]
+        ]
+        //console.warn('bootSystem adding subfield', { key, value, tagsArray })
         //store.commit('deleteField', value);
         store.commit('addField', {
             name: key,
@@ -324,7 +344,7 @@ async function bootSystem() {
             sandboxID: FEATURE_TEST_SANDBOX_ID,
             parentFieldID: FEATURE_TEST_ROOT_FIELD_ID,
 
-            ...FEATURE_TEST_SUBFIELD_TAGS[key],
+            tags: tagsArray,
             ...FEATURE_TEST_SUBFIELD_CONFIGS[key]
         })
     }
@@ -395,15 +415,19 @@ async function bootSystem() {
         },
         {
             name: 'the user can add a new field with a custom name',
-            test(i){
+            async test(i){
                 const name = 'test field name';
-                const id = store.dispatch('addField', {
+                const id = await store.dispatch('addField', {
                     name,
                     tags: [C.TAGS.TEST_TAG] // for cleanup after self-test
                 });
+                console.warn('bootSystem FeatureTest '+i.name,{
+                    id,
+                    lastFieldId: store.state.lastFieldId,
+                })
                 const field = store.state.fields[id];
                 if(!field){
-                    throw new Error("field does not exist")
+                    throw new FieldNotPresentError(id)
                 }
                 if(field.name !== name){
                     throw new Error("field name does not match")
@@ -411,8 +435,10 @@ async function bootSystem() {
                 return true;
             }
         },
+        // TODO: new FeatureTest() => FeatureTest.run()
         {
             name: 'the user can assign tags to a field and they will be saved',
+            required: true,
             test(i){
                 const name = 'test field name';
                 const tags = [C.TAGS.TEST_TAG];
@@ -422,12 +448,39 @@ async function bootSystem() {
                 });
                 const field = store.state.fields[id];
                 if(!field){
-                    throw new Error("field does not exist")
+                    throw new FieldNotPresentError(id, {
+                        context: i.name, 
+                        source: i.test.toString()
+                    })
                 }
                 if(field.tags.length !== tags.length){
                     throw new Error("field tags length does not match")
                 }
                 return true;
+            }
+        },
+        {
+            name: 'local changes are reflected to the server and made available from other Sandbox clients (RemoteFieldView)',
+            test(i){
+                return -1;
+            }
+        },
+        {
+            name: 'clients can send messages to all connected clients',
+            test(i){
+                return -1;
+            }
+        },
+        {
+            name: 'clients can send messages to specific connected clients',
+            test(i){
+                return -1;
+            }
+        },
+        {
+            name: 'clients can send encrypted messages to self across clients via a private channel',
+            test(i){
+
             }
         },
         {
@@ -441,7 +494,7 @@ async function bootSystem() {
                 });
                 const field = store.state.fields[id];
                 if(!field){
-                    throw new Error("field does not exist")
+                    throw new FieldNotPresentError(id)
                 }
                 if(field.tags.length !== tags.length){
                     throw new Error("field tags length does not match")
@@ -490,8 +543,40 @@ async function bootSystem() {
                 // our real responsibilities,
                 // our real honsest accountability to ourselves and those around us
             }
-        }
+        },
+        {
+            name: 'Math fields can compute basic math operations',
+            test(i){
+                // given a fresh field
+                // when we add a math field
+                // and we configure it to add 1 + {the value of another field}
+                // then we pulse the field one step
+                // then the field should have a value of 1 + {the value of the other field}
 
+                // given a fresh field
+                const testField = store.state.fields[FEATURE_TEST_ROOT_FIELD_ID];
+                const referenceFieldId = store.dispatch('addField', {
+                    name: 'testReferenceLiteralField',
+                    tags: [C.TAGS.LITERAL],
+                    literalConfig: {
+                        type: Number,
+                        value: 9
+                    }
+                })
+                const mathNodeId = store.dispatch('addField', {
+                    name: 'testMathNode',
+                    tags: [C.TAGS.MATH],
+                    parentFieldID: FEATURE_TEST_ROOT_FIELD_ID,
+                    mathNodeConfig: new MathFieldConfig({
+
+                    })
+                });
+                // pulse the Sandbox.Executor one pulse and check the result
+                const sandbox = store.state.sandboxes[testField.sandboxID];
+                //const executor = store.getters.executorForSandboxID(testField.sandboxID);
+                const executor = store.state.executors[sandbox.executorID];
+            }
+        }
 
 
         // {
@@ -884,6 +969,9 @@ async function bootSystem() {
         // },
     ];
 
+    // clean up an "TEST_TAG" tagged fields
+    store.dispatch('actionDeleteFieldsByTag', C.TAGS.TEST_TAG)
+
     const featureTestNames = featureTests.map(f => f.name);
 
     window.featureTests = featureTests;
@@ -930,8 +1018,9 @@ function runFeatureTests() {
         const existingFeatureField = Object.values(store.state.fields).find((f) => f.name === featureTest.name);
         let featureField;
         // If the feature field doesn't exist, add it to the system stack
-        if (!existingFeatureField) {
+        // if (!existingFeatureField) {
             let featureFieldID = await store.dispatch('addField', {
+                //id: featureTest.name, // override the auto-assigned id
                 name: featureTest.name,
                 parentFieldID: FEATURE_TEST_ROOT_FIELD_ID,
                 tags: [
@@ -941,19 +1030,19 @@ function runFeatureTests() {
             });
             console.warn('FeatureFieldID:', featureFieldID)
             featureField = store.state.fields[featureFieldID];
-        }
+        // }
         featureField = featureField ?? existingFeatureField;
         if (!featureField) {
             throw new Error('could not find or create FeatureField named: ' + featureTest.name);
         }
-        console.warn('testing feature field: ', {featureField})
+        //console.warn('testing feature field: ', {featureField})
         // clear any lingering errors (todo: make this an array of errors)
         featureField.error = null;
 
         let passing;
         try {
 
-            passing = featureTest.test(featureTest);
+            passing = await featureTest.test(featureTest);
         } catch (e) {
             if (!featureTest.required) {
                 // continue
@@ -961,16 +1050,17 @@ function runFeatureTests() {
                 console.error(e);
                 // attach error for output
                 // card.error = e;
-                store.commit('setFieldError', { fieldID, error: e })
+                store.commit('setFieldError', { fieldID: featureField.id, error: e })
             } else {
-                console.error('REQUIRED feature test failed "' + featureTest.name + '"');
+                console.error('=== REQUIRED feature test failed "' + featureTest.name + '"');
                 // rethrow
+                console.error('THE ERROR:',e);
                 throw e;
             }
         }
 
         // if passing === -1, it's pending
-        store.commit('setFieldPassingStatus', { field:featureField, passing })
+        store.commit('setFieldPassingStatus', { fieldID:featureField.id, passing })
 
     });
 }

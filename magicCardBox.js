@@ -99,6 +99,7 @@ class Stack {
 const { createStore } = Vuex;
 window.createStore = createStore;
 
+/** @deprecated */
 class Card {
     constructor({
         id,
@@ -241,20 +242,33 @@ const app = Vue.createApp({
 
             contextMenuContext.value = null;
             // if we clicked on or within a .card class element, we want to show the card context menu
-            if (event.target.classList.contains('card') || hasAncestorWithClass(event.target, 'card')) {
-                // get the card id from the data-card-id attribute
-                const cardId = event.target.dataset.cardId;
-                // flag the card as selected
-                store.commit('setCardSelected', { card: { id: cardId, stackId: event.target.dataset.stackId }, status: true });
-                contextMenuContext.value = 'card';
-            }else if(event.target.classList.contains('stack') || hasAncestorWithClass(event.target, 'stack')){
-                // get the stack id from the data-stack-id attribute
-                const closestStack = event.target.classList.contains('stack') ? event.target : event.target.closest('.stack');
-                const stackId = closestStack.dataset.stackId;
-                // flag the stack as selected
-                store.commit('setStackSelected', {stackId, status: true})
-                contextMenuContext.value = 'stack';
+            if(event.target.classList.contains('field') || hasAncestorWithClass(event.target, 'field')){
+                // get the field id from the data-field-id attribute
+                const closestField = event.target.classList.contains('field') ? event.target : event.target.closest('.field');
+                const fieldId = closestField.dataset.fieldId;
+                // flag the field as selected
+                store.commit('setFieldSelected', { fieldId, status: true });
+                contextMenuContext.value = 'field';
+                // NOTE: when a field is tagged,
+                // we check to see if the tag type exposes any additional actions
+                // which we should render in the context menu
+                // e.g. "pause timer" or "hide completed items"
             }
+            /** @deprecated */
+            // else if (event.target.classList.contains('card') || hasAncestorWithClass(event.target, 'card')) {
+            //     // get the card id from the data-card-id attribute
+            //     const cardId = event.target.dataset.cardId;
+            //     // flag the card as selected
+            //     store.commit('setCardSelected', { card: { id: cardId, stackId: event.target.dataset.stackId }, status: true });
+            //     contextMenuContext.value = 'card';
+            // }else if(event.target.classList.contains('stack') || hasAncestorWithClass(event.target, 'stack')){
+            //     // get the stack id from the data-stack-id attribute
+            //     const closestStack = event.target.classList.contains('stack') ? event.target : event.target.closest('.stack');
+            //     const stackId = closestStack.dataset.stackId;
+            //     // flag the stack as selected
+            //     store.commit('setStackSelected', {stackId, status: true})
+            //     contextMenuContext.value = 'stack';
+            // }
 
             event.preventDefault();
             showContextMenu.value = true;

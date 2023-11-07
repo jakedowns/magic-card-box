@@ -283,3 +283,31 @@ flex-direction: row; */
     max-width: 500px;
     margin: 0 auto;
 }
+
+/* FIELDS */
+.field {
+
+}
+
+.field.passing {
+    border-color: lightgreen;
+    background-color: darkolivegreen;
+}
+.field.pending {
+    border-color: yellow;
+    background-color: darkgoldenrod;
+}
+.field.success {
+    border-color: lightgreen;
+    background-color: darkolivegreen;
+}
+.field.failing {
+    border-color: red;
+    background-color: darkred;
+
+}
+.field.error {
+    /* border-color: red; */
+    color: red;
+    background-color: white;
+}

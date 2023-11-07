@@ -155,9 +155,26 @@
             <!-- debug view current fields -->
             <!-- Field Template -->
             <h1>Fields:</h1>
-            <div v-for="(fieldID, index) in currentFieldView">
-                Field:{{fieldID}} ({{index}}): {{fields[fieldID].name}}<br/>
-                Tags({{fields[fieldID].tags.length}}): {{fields[fieldID].tags.join(", ")}}<br/>
+            <div v-for="(fieldID, index) in currentFieldView"
+                :class="{
+                    'passing': fields[fieldID]?.passing === true,
+                    'success': fields[fieldID]?.passing === true,
+                    'pending': fields[fieldID]?.passing === -1,
+                    'error': fields[fieldID]?.error,
+                    'failing': fields[fieldID]?.passing === false,
+                }"
+            >
+                <div v-if="fields[fieldID]">
+                    Field:{{fieldID}} ({{index}}): {{fields[fieldID].name}}<br/>
+                    Tags({{fields[fieldID].tags.length}}): {{fields[fieldID].tags.join(", ")}}<br/>
+                    <pre>Passing? {{fields[fieldID].passing}}</pre>
+                </div>
+                <div v-else>
+                    Field Not Found {{fieldID}}
+                </div>
+                
+                <br/>
+                <hr/>
             </div>
 
 
@@ -186,6 +203,24 @@
             <div ref="contextMenu" class="context-menu" 
                 :style="{ top: menuPosition.y + 'px', left: menuPosition.x + 'px' }"
             >
+                <!-- default always present options -->
+                <ul class="global-context-menu">
+                    <li>Command Palette...</li>
+                    <li>Paste...</li>
+                    <li>Copy Selected Fields...</li>
+                    <li>Duplicate Selected Fields...</li>
+                    <li>Move Selected Fields...</li>
+                </ul>
+
+                </ul>
+                <ul class="field-context-menu" v-if="contextMenuContext === 'field'">
+                    <li @click="selectMenuItem('deleteSelectedFields')">Delete Selected Fields...</li>
+                    <li @click="selectMenuItem('closeSelectedFields')">Close Selected Fields...</li>
+                    <li @click="selectMenuItem('collapseSelectedFields')">Collapse Selected Fields...</li>
+                    <li @click="selectMenuItem('expandSelectedFields')">Expand Selected Fields...</li>
+                    <!-- Field Tag Context Menu Items -->
+                </ul>
+
                 <ul class="card-context-menu" v-if="contextMenuContext === 'card'">
                     <li @click="selectMenuItem('moveSelectedCardsToStack')">Move Cards to Stack...</li>
                     <li @click="selectMenuItem('deleteSelectedCards')">Delete Selected Cards...</li>

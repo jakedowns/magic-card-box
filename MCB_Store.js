@@ -39,6 +39,7 @@ const DEFAULT_STATE = {
 
     // Executors
     executors: {},
+    lastExecutorCreatedID: null,
 
     
     // could separate the value and a frontEnd specific themeSwitcherSelection that would require user to press "confirm" to save the change... but let's just tie the v-model directly to the store for now
@@ -138,6 +139,7 @@ const DEFAULT_STATE = {
 
         TAGS: {
             // used for cleaning up all feature test fields by tag...
+            TEST_TAG: 'testTag',
             FEATURE_TEST_FIELD: 'featureTestField',
 
             EXECUTABLE: 'executable',
@@ -216,6 +218,13 @@ class MMethod {
         return this.fn.apply(this.context, this.arguments)
     }
 }
+
+// Objects are collections of
+// Properties <any>
+// and Methods <functions>
+
+// Objects inherit from the base-type Field and are obstenibly a collection of Fields
+// The whole system is defined by a self-organizing, self-healing, and self-evaluating graph of Fields
 
 // compile-time typechecking is better
 // but, maybe there's still a case to be made for runtime typechecking
@@ -413,7 +422,8 @@ class Executor {
     // track which ids we've already executed this pulse
     // to prevent infinite recursion
     fieldIDsPulsedThisPulse = [];
-    constructor({sandboxID}){
+    constructor({id,sandboxID}){
+        this.id = id ?? 'exe_'+Date.now();
         this.sandboxID = sandboxID;
     }
     get sandbox(){
@@ -461,12 +471,16 @@ class Executor {
 // let's define a sandbox with some fields
 class Sandbox {
     id = null;
-    executor = null;
+    executorID = null;
     rootFieldID = null;
     rootFieldIDs = [];
     constructor({id}){
         this.id = id ?? 'sandbox_'+Date.now();
-        this.executor = new Executor(this.id);
+        const exeID = store.dispatch('addExecutorAction',{
+            sandboxID: this.id
+        })
+        this.executorID = exeID;
+        // TODO: move some of this to executor class...
         this.programCounter = 0;
         this.steps = [];
         // accumulator
@@ -1075,12 +1089,15 @@ function setupStore(){
                 // bust cache of stack card status counts
                 s.stacks[card.stackId].flagDirty();
             },
-            setFieldPassingStatus(s, { field, passing }){
-                if(!s.fields[field.id]){
-                    console.error('setFieldPassingStatus: field not found', { field, field_ids: Object.keys(s.fields) });
+            setFieldPassingStatus(s, { fieldID, passing }){
+                if(!s.fields[fieldID]){
+                    console.error('setFieldPassingStatus: field not found', { 
+                        fieldID, 
+                        avail_field_ids: Object.keys(s.fields) 
+                    });
                     return;
                 }
-                s.fields[field.id].passing = passing;
+                s.fields[fieldID].passing = passing;
             },
             // TODO: make field errors an array...
             setFieldError(s, { fieldID, error }) {
@@ -1167,9 +1184,9 @@ function setupStore(){
             setNewCardName(s, { stackId, newName }) { s.newCardNames[stackId.toString()] = newName; },
 
             addExecutor(s, payload){
-                const new_id = payload?.id ?? ''+Date.now();
-                s.executors[new_id] = new Executor(payload);
-                s.lastExecutorID = new_id
+                let exe = new Executor(payload);
+                s.executors[exe] = exe
+                s.lastExecutorCreatedID = exe.id
             },
             deleteExecutor(s, executorID){
                 if(!s.executors[executorID]){
@@ -1196,7 +1213,7 @@ function setupStore(){
             addField(s, payload){
                 const newField = new Field(payload ?? {});
                 s.fields[newField.id] = newField
-                s.field_views.default_order.push(newField.id);
+                s.field_views.default_order.push(''+newField.id);
                 s.lastFieldID = newField.id
             },
             deleteField(s, fieldID){
@@ -1207,6 +1224,15 @@ function setupStore(){
                 delete s.fields[fieldID]
                 console.warn('todo: delete the field id from all field_order views');
             },
+            mutDeleteFieldsByTag(s, tag){
+                // TODO: add suppressable confirmation at the action layer
+                // delete all fields with the given tag
+                Object.values(s.fields).forEach(field => {
+                    if(field.tags.includes(tag)){
+                        delete s.fields[field.id]
+                    }
+                })
+            },
             fieldAddTags(s, { fieldID, tags }) {
                 console.warn(s.fields[fieldID]);
                 s.fields[fieldID].tags = [...new Set([...s.fields[fieldID].tags, ...tags])];
@@ -1216,7 +1242,22 @@ function setupStore(){
             }
         },
         actions: {
-
+            actionDeleteFieldsByTag(context, tag){
+                context.commit('mutDeleteFieldsByTag',tag)
+            },
+            actionDeleteFieldsByTags(context, tags){
+                // TODO: keep track of successes / failures of the bulk delete operation
+                // let the consumer know if any fields or tags were not found
+                // or if any other errors were encountered
+                tags.forEach(tag => {
+                    context.commit('mutDeleteFieldsByTag',tag)
+                })
+            },
+            addExecutorAction(context, payload){
+                context.commit('addExecutor', payload)
+                console.warn('addExecutorAction',{lastExecutorCreatedID: context.state.lastExecutorCreatedID})
+                return context.state.lastExecutorCreatedID
+            },
             addField(context, payload){
                 context.commit('addField', payload)
                 return context.state.lastFieldID
