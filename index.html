@@ -10,8 +10,8 @@
  
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Magic Card Box</title>
-    <script src="https://unpkg.com/vue@next"></script>
-    <script src="https://unpkg.com/vuex@next"></script>
+    <script src="./vue.js"></script>
+    <script src="./vuex.js"></script>
     <script src="./magicCardBox.js"></script>
     <script src="./MCB_Store.js"></script>
     <script src="./system-boot-feature-tests.js"></script>
@@ -70,8 +70,7 @@
             
             <div id="fileDropZone" @dragover.prevent @drop.prevent="uploadFiles">Drop files here to upload</div>
 
-            <!-- START PASTE -->
-            <body style="min-width: 420px;">
+            <div class="timer-display" style="min-width: 420px;">
                 <div class="container-fluid">
                 
                     <div id="display" class="row-fluid" style="display: block;">
@@ -144,7 +143,21 @@
                     </div>
                 
                 </div>
-            <!-- END PASTE -->
+            </div>
+
+            <!-- 
+                refactor note: we're going to be refactoring from "stacks" to "fields" 
+                we'll iterate over the current rootField and render them as rectangles for the default view
+                eventually we'll have different rendering modes like a 3d graph
+                but for now, we're starting with a fractal / nested treemap like view
+                
+            -->
+            <!-- debug view current fields -->
+            <h1>Fields:</h1>
+            <div v-for="(fieldID, index) in currentFieldView">
+                ID:{{index}}: {{fields[fieldID].name}}
+            </div>
+
 
             <!-- popup window -->
             <div class="popup-overlay" v-if="showPopup">
@@ -201,27 +214,41 @@
                 <label for="cardCols">
                     <input name="cardCols" type="number" step="1" min="1" max="100" v-model="cardColumnsInput" />
                 </label>
-                <form @submit.prevent="addStack({name:newStackName})">
-                    <input v-model="newStackName" placeholder="New Stack Name" ref="newStackNameInput">
-                    <button type="submit">Add Stack</button>
+                <h3>Field Controls</h3>
+                <form @submit.prevent="addField({name:newFieldName})">
+                    <input v-model="newFieldName" placeholder="New Field Name" ref="newFieldNameInput">
+                    <button type="submit">Add Field</button>
+                    [Collapse All Fields]
+                    [Expand All Fields]
+                    [Close All Fields]
+                    [Open All Fields]
+                    [Return to Root Field (Home)]
                 </form>
-                <!-- TODO: hide if all collapsed || all closed || none visible -->
-                <button @click="collapseAll">Collapse All</button>
-                <!-- TODO: hide if all expanded || all closed || none visible -->
-                <button @click="expandAll">Expand All</button>
-                <!-- TODO: hide if all closed || none visible -->
-                <button @click="closeAllStacks">Close All</button>
-                <!-- TODO: hide if none closed -->
-                <button @click="openAllStacks">Open All</button>
-                <br/>
-                <!-- TODO: hide if none closed -->
-                <select v-model="selectedClosedStack">
-                    <option value="">Select a closed stack</option>
-                    <option v-for="([stackId, stack]) in Object.entries(stacks).filter(([_, stack]) => stack.closed)" :value="stackId">
-                        {{ stack.name }}
-                    </option>
-                </select>
-                <!-- <button @click="openSelectedStack">Open Stack</button> -->
+                <hr/>
+                <div style="opacity: 0.25">
+                    <h3>Stack Controls (old)</h3>
+                    <form @submit.prevent="addStack({name:newStackName})">
+                        <input v-model="newStackName" placeholder="New Stack Name" ref="newStackNameInput">
+                        <button type="submit">Add Stack</button>
+                    </form>
+                    <!-- TODO: hide if all collapsed || all closed || none visible -->
+                    <button @click="collapseAll">Collapse All</button>
+                    <!-- TODO: hide if all expanded || all closed || none visible -->
+                    <button @click="expandAll">Expand All</button>
+                    <!-- TODO: hide if all closed || none visible -->
+                    <button @click="closeAllStacks">Close All</button>
+                    <!-- TODO: hide if none closed -->
+                    <button @click="openAllStacks">Open All</button>
+                    <br/>
+                    <!-- TODO: hide if none closed -->
+                    <select v-model="selectedClosedStack">
+                        <option value="">Select a closed stack</option>
+                        <option v-for="([stackId, stack]) in Object.entries(stacks).filter(([_, stack]) => stack.closed)" :value="stackId">
+                            {{ stack.name }}
+                        </option>
+                    </select>
+                    <!-- <button @click="openSelectedStack">Open Stack</button> -->
+                </div>
             </div>
 
 

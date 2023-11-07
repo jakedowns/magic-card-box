@@ -229,14 +229,27 @@ io.on('connection', (socket) => {
   console.log('a user connected');
 
   console.log('Client connected');
+
   clients.push(socket);
+
   // assign a unique ID to the client
   socket.id = clients.length;
+  
   // let the client know what its ID is
   socket.emit('id', socket.id);
 
   socket.on('message', (message) => {
     console.log(`Received message => ${JSON.stringify(message)}`);
+
+    // if the message.type === 'message
+    // and the messsage.payload.message === 'hello world'
+    // respond hello world
+    if(
+      message?.type === 'message' 
+      && message?.payload?.message === 'hello world'
+    ){
+      socket.emit('message', JSON.stringify({ type: 'message', payload: { message: 'hello world' } }));
+    }
   });
   let lastHeartbeatSent = Date.now();
   // establish a heartbeat to keep the connection alive

@@ -152,14 +152,26 @@ const app = Vue.createApp({
         const store = Vuex.useStore();
         const { computed, ref, reactive,
             watch, onMounted, onBeforeUnmount } = Vue;
+
+        // OLD: stacks & cards
         const stacks = computed(() => store.state.stacks);
         const newCardNames = computed(() => store.state.newCardNames);
-        const showPopup = computed(() => store.state.showPopup);
         const selectedStacks = computed(() => store.state.selectedStacks);
+        // draggingCard
         const dragging = ref({ cardId: null, fromStackId: null });
         const draggingStack = ref(null);
         const newStackNameInput = ref(null);
         const newStackName = ref('');
+
+        // NEW: Fields
+        const newFieldName = ref('');
+        const fields = computed(() => store.state.fields);
+        const currentFieldView = computed(()=>{
+            // TODO: make getter
+            return store.state.field_views[store.state.currentFieldViewID];
+        })
+
+        const showPopup = computed(() => store.state.showPopup);
         const contextMenuContext = ref(null);
         const selectedStackToMerge = ref(null);
 
@@ -525,8 +537,32 @@ const app = Vue.createApp({
             return output;
         }
 
+        const addStack = () => {
+            store.commit('addStack', { name: newStackName.value });
+            //newStackNameInput.value.focus();
+        }
+
+        const addField = () => {
+            store.commit('addField', {
+                name: newFieldName.value,
+            })
+        }
+
+        const organizeImagesByColor = () => {
+            console.warn('TODO');
+        }
+
+        const uploadFiles = () => {
+            console.warn('TODO');
+        }
+
 
         return {
+
+            // placeholders
+            organizeImagesByColor,
+            uploadFiles,
+
             // generates it in local memory and the remote server
             // or do we just let the localstorage replicate to the server?
             // we'll see...
@@ -540,23 +576,32 @@ const app = Vue.createApp({
             // View Options
             cardColumnsInput,
             stackColumnsInput,
+
+            // Stack Stuff (being replaced with fields)
             newStackName,
             ...Vuex.mapActions([
                 'toggleEditCard',
             ]),
-            addStack() {
-                store.commit('addStack', { name: newStackName.value });
-                //newStackNameInput.value.focus();
-            },
+            addStack,
+            selectedStackToMerge,
+            toggleCardSelected,
+            stackDragStart,
+            stackDrop,
+            selectedStacks,
 
+            // Field Stuff
+            newFieldName,
+            addField,
+            fields,
+            currentFieldView,
+
+            // Themes!
             AVAILABLE_THEMES: store.state.AVAILABLE_THEMES,
             currentThemeIndex,
             currentThemeName,
 
-            selectedStackToMerge,
-
-            toggleCardSelected,
-
+            
+            // Context Menus!
             openContextMenu,
             handleTouchStart,
             handleTouchEnd,
@@ -564,11 +609,6 @@ const app = Vue.createApp({
             menuPosition,
             contextMenu,
             contextMenuContext,
-
-            stackDragStart,
-            stackDrop,
-
-            selectedStacks,
 
             // mapped mutations
             deleteStack,
@@ -684,114 +724,3 @@ document.addEventListener("DOMContentLoaded", async function(event) {
     app.use(store);
     app.mount('#app');
 });
-
-/**
- * 
- */
-class Class {
-    constructor(name){
-        this.type = 'Class'
-        this.name = name
-    }
-}
-
-class Method {
-    constructor(name){
-        this.type = 'Method'
-        this.name = name
-    }
-}
-
-class Callback {
-    constructor(name){
-        this.type = 'Callback'
-        this.name = name
-    }
-}
-
-class Camera {
-    constructor(){
-
-    }
-}
-
-// you can have multiple nested instances of these
-class InfiniteCanvas {
-    constructor(){
-        this.canvas_views = []
-        
-        // the "frame"
-        this.canvas = null
-
-        this.cameras = {
-            "rootCamera": new Camera()
-        }
-        this.defaultCameraID = "rootCamera"
-        this.activeCameraID = null
-    }
-}
-
-/** todo extend a common open source math lib for vector types */
-class SpacetimePoint {
-    constructor(x,y,z,w){
-        this.type = 'SpacetimePoint'
-        this.x = x
-        this.y = y
-        this.z = z
-    }
-}
-
-// Fields must contain at least on default entrypoint
-// multiple entrypoints can be defined
-// if no default is specified, the first defined entrypoint is used
-class FieldEntrypoint extends SpacetimePoint {
-
-}
-
-class DataTable {
-
-}
-
-class Stream {
-
-}
-
-/*
-    We don't just offer standard programming primitives
-    we offer higher-level abstractions that are more
-    user-friendly and mobile-xr-first
-*/
-
-// some things are selectable
-class Selectable {}
-
-// some things are sortable (via given properties)
-class Sortable {}
-// sorting happens within volumes which 
-// use expensive tracking algorithms to monitor
-// the position of objects within the volume
-class SortingArea {}
-class SortingStack {}
-
-// Some things in the system are grabbable by grabbers
-class Grabbable {}
-class Grabber {}
-
-// The system utilizies 
-// Graphs and Trees as just two means of visualizing
-// data within the system
-class Node {}
-class Graph {}
-class Tree {}
-
-// Primitives for Vuex-like Flux-based central DataStore
-// TODO: extend with namespaced modules...
-// for now, just use a single global store
-class Action {}
-class Store {}
-
-// Local and Networked EventSystems
-class ActionDispatcher {}
-class ActionReceiver {}
-
-/* Using these primitives, and our remote data storage */

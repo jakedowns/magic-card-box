@@ -1,3 +1,23 @@
+/**
+ * System > Sandboxes
+ * Sandboxes are isolated execution environments that can exist in parallel
+ * Sandbox > Fields (the literal data and control flow of the program)
+ * Sandbox > Executor (the class responsible for stepping and monitoring execution)
+ * 
+ * when we want to execute any program,
+ * we must first define a sandbox
+ * the program launches with a default sandbox
+ * others can be created dynamically
+ * 
+ * when a sandbox is created, an executor instance (singleton) is created
+ * multiple executors can act within a sandbox, but for now we focus on 1
+ * 
+ * the executor will automatically jump to the entry point of the field (the designated subfield which is the starting point of execution)
+ * if the entrypoint is executable, it will begin until it reaches a wait or stop point
+ * if it is not, the executor will enter an idle state, waiting for input from the user or the system
+ */
+
+
 const themeNames = {
     THEME_DARK: 'Dark', // DEFAULT
     THEME_DARK_STATUS_COLORS: 'Dark with Status Colors',
@@ -7,6 +27,19 @@ const themeNames = {
 const AVAILABLE_THEMES = Object.values(themeNames);
 
 const DEFAULT_STATE = {
+
+    // Sandboxes
+    sandboxes: {},
+    // eventually, i want to allow the user to run multiple sandboxes simultaneously
+    // like docker containers
+    // for now, let's focus on being "within" the context of one sandbox at a time
+    // SandboxContext:
+    currentlyViewedSandboxID: null,
+    lastSandboxCreatedID: null, // the most recently created sandbox id
+
+    // Executors
+    executors: {},
+
     
     // could separate the value and a frontEnd specific themeSwitcherSelection that would require user to press "confirm" to save the change... but let's just tie the v-model directly to the store for now
     // currently selected theme...
@@ -44,9 +77,18 @@ const DEFAULT_STATE = {
     field_views: {
         default_order: [], // an ordered list of field ids
     }, // our map of arrays of ordered fields
-    
+    currentFieldViewID: 'default_order',
     // the last field id we created
     lastFieldID: null, 
+    // currentRootField
+    // the currently selected root field
+    // eventually we'll allow side-by-side browsing of root fields simultaneously
+    // but for now, let's start with 1 root field at a time
+    // clicking into a subfield will make it the current root field
+    // if the current root field has a parent field, we'll have a back or "up" button
+    // allowing you to zoom out / up back to the parent level
+    // if the root field has no parents, it's the top level field
+    currentlyViewingFieldID: null,
 
     /** @Map < @Method > */
     methods: {},
@@ -108,7 +150,21 @@ const DEFAULT_STATE = {
             // timers can either execute code periodically,
             // or once after a fixed delay
             // if the user closes their computer and the timer is resumed, wall time is used to calculate the delay until next execution
-            TIMER: 'timer'
+            TIMER: 'timer',
+
+            MARQUEE: 'marquee',
+            CLOCK: 'clock',
+            TODO_LIST: 'todoList',
+            WEATHER: 'weather',
+            SUN_POSITION: 'sunPosition',
+            MOON_POSITION: 'moonPosition',
+            USER_LOCATION: 'userLocation',
+            LOOP_FN: 'loopFN',
+            SYNC_FN: 'syncFn',
+            ASYNC_FN: 'asyncFn',
+            // TODO:
+            // debounced_fn
+            // throttled_fn
 
         },
 
@@ -241,11 +297,30 @@ class Taggable {
         this.tags.removeTags(tags);
     }
 }
-class Flaggable extends Taggable {
+class TagFlaggable  {
 
+    // props
+    flags = {}
+    
+    // methods
+    addFlag(flag){
+        this.flags[flag] = true;
+    }
+    addFlags(flags){
+        throw new Error("not implemented")
+    }
+    removeFlag(flag){
+        delete this.flags[flag];
+    }
+    removeFlags(flags){
+        throw new Error("not implemented")
+    }
+    hasFlag(flag){
+        return !!this.flags[flag]
+    }
 }
-class Field extends Flaggable {
-    constructor(){
+class Field {
+    constructor({parentFieldID, childFieldIDs, tags}){
         // fields hold references to literals, and other fields
         // all fields are stored in the Store in a flat map
         // we do not pass fields Class Instance Objects around, we only pass around their String IDs
@@ -257,10 +332,16 @@ class Field extends Flaggable {
         
         // we call a setter so it gets reflected to the server,
         // or we let the store just reflect to the server during a filtered list of mutation types
-        this.setFlag('')
+        //this.setFlag('')
 
         // let's try a map
         this.literals = {};
+
+        this.tags = tags ?? [];
+
+        this.childFieldIDs = childFieldIDs;
+
+        this.parentFieldID = parentFieldID;
     }
 
     setLiteral(literalName, literalValue){
@@ -269,9 +350,29 @@ class Field extends Flaggable {
     
 }
 
+/**
+ * @class Executor
+ * this class walks the fields,
+ * and executes the various sub-fields along the way
+ * 
+ * by default there's one
+ * 
+ * but by design, we can have multiple executors to run in parallel
+ */
+class Executor {
+    sandboxID = null;
+    constructor({sandboxID}){
+        this.sandboxID = sandboxID;
+    }
+}
+
 // let's define a sandbox with some fields
 class Sandbox {
-    constructor(){
+    id = null;
+    executor = null;
+    constructor({id}){
+        this.id = id ?? 'sandbox_'+Date.now();
+        this.executor = new Executor(this.id);
         this.programCounter = 0;
         this.steps = [];
         // accumulator
@@ -293,6 +394,16 @@ class Sandbox {
     addField(field){
         // track the id of the field so we can refer to it later
         this.fields.push(field.id); 
+
+        // if the field has a parentFieldID, update the parent field's ChildFieldIDs array
+        if(field.parentFieldID){
+            // get the parent field
+            const parentField = this.fields[field.parentFieldID];
+            // add the child field to the parent field's childFieldIDs
+            parentField.childFieldIDs.push(field.id);
+            // de-dupe
+            parentField.childFieldIDs = [...new Set(parentField.childFieldIDs)];
+        }
 
         // as we go through each point in space
         // prioritized via the BSP tree
@@ -353,6 +464,117 @@ class DebouncedCallback {
 class ThrottledCallback {
 
 }
+
+/**
+ * 
+ */
+class Class {
+    constructor(name){
+        this.type = 'Class'
+        this.name = name
+    }
+}
+
+class Method {
+    constructor(name){
+        this.type = 'Method'
+        this.name = name
+    }
+}
+
+class Callback {
+    constructor(name){
+        this.type = 'Callback'
+        this.name = name
+    }
+}
+
+class Camera {
+    constructor(){
+
+    }
+}
+
+// you can have multiple nested instances of these
+class InfiniteCanvas {
+    constructor(){
+        this.canvas_views = []
+        
+        // the "frame"
+        this.canvas = null
+
+        this.cameras = {
+            "rootCamera": new Camera()
+        }
+        this.defaultCameraID = "rootCamera"
+        this.activeCameraID = null
+    }
+}
+
+/** todo extend a common open source math lib for vector types */
+class SpacetimePoint {
+    constructor(x,y,z,w){
+        this.type = 'SpacetimePoint'
+        this.x = x
+        this.y = y
+        this.z = z
+    }
+}
+
+// Fields must contain at least on default entrypoint
+// multiple entrypoints can be defined
+// if no default is specified, the first defined entrypoint is used
+class FieldEntrypoint extends SpacetimePoint {
+
+}
+
+class DataTable {
+
+}
+
+class Stream {
+
+}
+
+/*
+    We don't just offer standard programming primitives
+    we offer higher-level abstractions that are more
+    user-friendly and mobile-xr-first
+*/
+
+// some things are selectable
+class Selectable {}
+
+// some things are sortable (via given properties)
+class Sortable {}
+// sorting happens within volumes which 
+// use expensive tracking algorithms to monitor
+// the position of objects within the volume
+class SortingArea {}
+class SortingStack {}
+
+// Some things in the system are grabbable by grabbers
+class Grabbable {}
+class Grabber {}
+
+// The system utilizies 
+// Graphs and Trees as just two means of visualizing
+// data within the system
+class Node {}
+class Graph {}
+class Tree {}
+
+// Primitives for Vuex-like Flux-based central DataStore
+// TODO: extend with namespaced modules...
+// for now, just use a single global store
+class Action {}
+class Store {}
+
+// Local and Networked EventSystems
+class ActionDispatcher {}
+class ActionReceiver {}
+
+/* Using these primitives, and our remote data storage */
 
 // okay let's think about other default assumptions in our system and the TAGs we'd like to 
 // attributes to types
@@ -824,10 +1046,52 @@ function setupStore(){
             setNewStackName(s, newName) { s.newStackName = newName; },
             setNewCardName(s, { stackId, newName }) { s.newCardNames[stackId.toString()] = newName; },
 
+            addExecutor(s, payload){
+                const new_id = payload?.id ?? ''+Date.now();
+                s.executors[new_id] = new Executor(payload);
+                s.lastExecutorID = new_id
+            },
+            deleteExecutor(s, executorID){
+                if(!s.executors[executorID]){
+                    console.error('executor not found', {executorID})
+                    return
+                }
+                delete s.executors[executorID]
+            },
+
+            addSandbox(s, payload){
+                const new_id = payload?.id ?? ''+Date.now();
+                s.sandboxes[new_id] = new Sandbox(payload);
+                s.lastSandboxID = new_id
+            },
+
+            deleteSandbox(s, sandboxID){
+                if(!s.sandboxes[sandboxID]){
+                    console.error('sandbox not found', {sandboxID})
+                    return
+                }
+                delete s.sandboxes[sandboxID]
+            },
+
             addField(s, payload){
                 const new_id = payload?.id ?? ''+Date.now();
-                s.fields[new_id] = payload;
+                s.fields[new_id] = new Field(payload ?? {});
                 s.lastFieldID = new_id
+            },
+            deleteField(s, fieldID){
+                if(!s.fields[fieldID]){
+                    console.error('field not found', {fieldID})
+                    return
+                }
+                delete s.fields[fieldID]
+                console.warn('todo: delete the field id from all field_order views');
+            },
+            fieldAddTags(s, { fieldID, tags }) {
+                console.warn(s.fields[fieldID]);
+                s.fields[fieldID].tags = [...new Set([...s.fields[fieldID].tags, ...tags])];
+            },
+            fieldRemoveTags(s, { fieldID, tags }) {
+                s.fields[fieldID].tags = s.fields[fieldID].tags.filter(t => !tags.includes(t));
             }
         },
         actions: {
@@ -945,6 +1209,8 @@ function setupStore(){
             case 'addCard':
             case 'stackAddTags':
             case 'cardAddTags':
+
+            case 'addField':
                 // update tag_cache with any new tags
                 store.commit('updateTagCache', { tags: mutation.payload?.tags ?? [] });
                 break;
@@ -956,7 +1222,9 @@ function setupStore(){
             state.newCardNames[stackId + ''] = '';
             // the text input isn't updating to reflect the model change
             // let's force it empty..
-    
+        }
+
+        if (mutation.type === 'addField') {
         }
     });
 
