@@ -1,7 +1,212 @@
+let C; // store.state.CONST
+const MISSION_STATEMENT = `
+Hello, it's ${new Date().toLocaleTimeString()} on ${new Date().toLocaleDateString()}.
+You're currently viewing Magic Card Box
+a prototype Operating system built for today from the ground up using today's technology and standards.
+we're moving beyond the technical debt of the past
+into the exciting world of AI and XR
+It's a fuzzy future, but we're having fun exploring the possibilities
+the bicycle for the mind just became the jetpack for the brain
+`
+
+class MarqueeConfig {
+    text = 'hello world'
+    speed = 1
+    direction = 'right'
+    // computed cache
+    update() {
+
+    }
+
+    // our render loop would probably make this marquee reset every frame
+    // rather than letting it be left alone in the DOM for the browser to handle
+    // maybe we need a renderOnce for "static" fields that don't want to be re-rendered every frame
+    // OR maybe we re-implment the browser's marquee tag in our own way
+    // that would give us more customization options and control in terms of pausing, etc...
+    renderOnce() {
+        return `<marquee style="">${this.text}</marquee>`
+    }
+}
+
+class TimerConfig {
+    duration = 10 // seconds
+    sound = 'ding'
+    // computed cache
+    currentTime = null
+    startTime = null
+    expired = false
+    start() {
+        this.startTime = Date.now();
+    }
+    // TODO: allow this Field to be paused and resumed
+    // TODO: allow this Field to de-register from the executor when it's done
+    // so we don't keep calling it once it has no more work to do
+    update() {
+        this.currentTime = Date.now();
+
+        if (!this.expired) {
+            // check if we have expired
+            if (this.currentTime - this.startTime >= this.duration) {
+                this.expired = true;
+                // play sound
+                console.warn('todo play sound ' + this.sound);
+
+                console.warn('Timer Field: todo de-register from executor')
+            }
+        }
+    }
+}
+class ClockConfig {
+    timezone = 'default'
+    // computed cache
+    currentTime = null
+    update() {
+        // recompute current time taking timezone into account
+        this.currentTime = Date.now();
+    }
+}
+
+class CompleteableField extends Field {
+    completed_at = null;
+    constructor(payload) {
+        super(payload);
+    }
+    // toggle by passing nothing
+    // set by passing a desired status
+    toggleCompleted(status) {
+        if (typeof status === 'undefined') {
+            this.completed_at = this.completed_at ? null : Date.now();
+        } else {
+            this.completed_at = status ? Date.now() : null;
+        }
+    }
+
+}
+
+class TodoListConfig { }
+class CompleteableConfig { }
+class WeatherConfig { }
+class SunPositionConfig { }
+class MoonPositionConfig { }
+class UserLocationConfig { }
+class LoopExampleConfig { }
+class SynchronousExampleConfig { }
+class AsynchronousExampleConfig { }
+
+/** @deprecated */
 const SYSTEM_STACK_ID = '100';
-const FIELD_STACK_ID = '101';
+/** New */
+const FEATURE_TEST_SANDBOX_ID = 'featureTestSandbox';
+const FEATURE_TEST_ROOT_FIELD_ID = 'featureTestRootField';
+
+// add our test sub-fields
+const FEATURE_TEST_SUBFIELD_IDS = {
+    FT_SF_MARQUEE: 'FT_SF_MARQUEE',
+    FT_SF_TIMER: 'FT_SF_TIMER', // pomodoro babyyyyy
+    FT_SF_CLOCK: 'FT_SF_CLOCK',
+    FT_SF_TODO_LIST: 'FT_SF_TODO_LIST',
+    FT_SF_WEATHER: 'FT_SF_WEATHER',
+    FT_SF_SUN_POSITION: 'FT_SF_SUN_POSITION',
+    FT_SF_MOON_POSITION: 'FT_SF_MOON_POSITION',
+    FT_SF_USER_LOCATION: 'FT_SF_USER_LOCATION',
+
+    FT_SF_LOOP_EXAMPLE: 'FT_SF_LOOP_EXAMPLE',
+    FT_SF_SYNCHROUS_EXAMPLE: 'FT_SF_SYNCHROUS_EXAMPLE',
+    FT_SF_ASYNC_EXAMPLE: 'FT_SF_ASYNC_EXAMPLE',
+}
+
+let FEATURE_TEST_SUBFIELD_TAGS = {}
+
+const FEATURE_TEST_SUBFIELD_CONFIGS = {
+    FT_SF_MARQUEE: {
+        marquee_config: new MarqueeConfig({
+            text: 'hello world',
+            speed: 1,
+            direction: 'right'
+        })
+    },
+    FT_SF_TIMER: {
+        timer_config: new TimerConfig({
+            duration: 10, // seconds
+            sound: 'ding'
+        })
+    },
+    FT_SF_CLOCK: {
+        clock_config: new ClockConfig({
+            // use the user's timezone by default
+            timezone: 'default',
+            getTime() {
+                return Date.now();
+            }
+        })
+    },
+    FT_SF_TODO_LIST: {
+        todo_list_config: new TodoListConfig({
+            items: [
+                new CompleteableField({
+                    content: 'test todo item',
+                    completed: false
+                })
+            ]
+        })
+    },
+    FT_SF_WEATHER: {
+        weather_config: new WeatherConfig({
+            // TODO: show how we can wait for the user location field to resolve and then use that value
+            getWeather() {
+                return 'sunny';
+            }
+        })
+    },
+    FT_SF_SUN_POSITION: {
+        sun_position_config: new SunPositionConfig({
+            // TODO: show how we can wait for the user location field to resolve and then use that value
+            getSunPosition() {
+                return 'high';
+            }
+        })
+    },
+    FT_SF_MOON_POSITION: {
+        moon_position_config: new MoonPositionConfig({
+            // TODO: show how we can wait for the user location field to resolve and then use that value
+            getMoonPosition() {
+                return 'high';
+            }
+        })
+    },
+    FT_SF_USER_LOCATION: {
+        user_location_config: new UserLocationConfig({
+            getUserLocation() {
+                return 'USA';
+            }
+        })
+    },
+    FT_SF_LOOP_EXAMPLE: {
+        loop_example_config: new LoopExampleConfig({
+            getLoopExample() {
+                return 'loop example';
+            }
+        })
+    },
+    FT_SF_SYNCHROUS_EXAMPLE: {
+        synchronous_example_config: new SynchronousExampleConfig({
+            getSynchronousExample() {
+                return 'synchronous example';
+            }
+        })
+    },
+    FT_SF_ASYNC_EXAMPLE: {
+        asynchronous_example_config: new AsynchronousExampleConfig({
+            getAsynchronousExample() {
+                return 'asynchronous example';
+            }
+        })
+    },
+}
 
 async function bootSystem() {
+    console.warn(MISSION_STATEMENT)
+
     // wait for the store.state.CONST.TYPES to be populated
     await new Promise((resolve) => {
         const interval = setInterval(() => {
@@ -16,7 +221,22 @@ async function bootSystem() {
         })
     }, 100);
 
-    const C = store.state.CONST;
+    C = store.state.CONST;
+
+    FEATURE_TEST_SUBFIELD_TAGS = {
+        FT_SF_MARQUEE: [C.TAGS.MARQUEE],
+        FT_SF_TIMER: [C.TAGS.TIMER],
+        FT_SF_CLOCK: [C.TAGS.CLOCK],
+        FT_SF_TODO_LIST: [C.TAGS.TODO_LIST],
+        FT_SF_WEATHER: [C.TAGS.WEATHER],
+        FT_SF_SUN_POSITION: [C.TAGS.SUN_POSITION],
+        FT_SF_MOON_POSITION: [C.TAGS.MOON_POSITION],
+        FT_SF_USER_LOCATION: [C.TAGS.USER_LOCATION],
+    
+        FT_SF_LOOP_EXAMPLE: [C.TAGS.LOOP_EXAMPLE],
+        FT_SF_SYNCHROUS_EXAMPLE: [C.TAGS.SYNCHRONOUS_EXAMPLE],
+        FT_SF_ASYNC_EXAMPLE: [C.TAGS.ASYNCHRONOUS_EXAMPLE],
+    }
 
     /** @deprecated */
     // verify a stack exists which represents the system
@@ -63,8 +283,7 @@ async function bootSystem() {
     // 2. maybe we keep the fields and let them be deleted separately?
     // 3. maybe we give the option to the user to migrate fields or subfields when they try to delete a field
 
-    const FEATURE_TEST_SANDBOX_ID = 'featureTestSandbox';
-    const FEATURE_TEST_ROOT_FIELD_ID = 'featureTestRootField';
+
     //store.commit('deleteSandbox', FEATURE_TEST_SANDBOX_ID) // delete if exists
     store.commit('addSandbox', {
         id: FEATURE_TEST_SANDBOX_ID
@@ -85,135 +304,19 @@ async function bootSystem() {
         name: FEATURE_TEST_ROOT_FIELD_ID, // can be any string
         // we're going to use a forced id so we can delete it on boot
         // could also delete by tag
-        id: FEATURE_TEST_ROOT_FIELD_ID, 
-        
+        id: FEATURE_TEST_ROOT_FIELD_ID,
+
         // assign it to our sandbox (note fields can be reused across sandboxes)
         // so we might need to support an array of sandbox ids
-        sandboxID: FEATURE_TEST_SANDBOX_ID, 
-        
+        sandboxID: FEATURE_TEST_SANDBOX_ID,
+
         // the entry point to an entrypoint is a root field
         field_type: store.state.CONST.TYPES.ROOT_FIELD, // might not need to distinguish ROOT_FIELD from FIELD type, if there's no parentFieldID, it's a root
     })
 
-    // add our test sub-fields
-    const FEATURE_TEST_SUBFIELD_IDS = {
-        FT_SF_MARQUEE: 'FT_SF_MARQUEE',
-        FT_SF_TIMER: 'FT_SF_TIMER', // pomodoro babyyyyy
-        FT_SF_CLOCK: 'FT_SF_CLOCK',
-        FT_SF_TODO_LIST: 'FT_SF_TODO_LIST',
-        FT_SF_WEATHER: 'FT_SF_WEATHER',
-        FT_SF_SUN_POSITION: 'FT_SF_SUN_POSITION',
-        FT_SF_MOON_POSITION: 'FT_SF_MOON_POSITION',
-        FT_SF_USER_LOCATION: 'FT_SF_USER_LOCATION',
 
-        FT_SF_LOOP_EXAMPLE: 'FT_SF_LOOP_EXAMPLE',
-        FT_SF_SYNCHROUS_EXAMPLE: 'FT_SF_SYNCHROUS_EXAMPLE',
-        FT_SF_ASYNC_EXAMPLE: 'FT_SF_ASYNC_EXAMPLE',
-    }
 
-    const FEATURE_TEST_SUBFIELD_TAGS = {
-        FT_SF_MARQUEE: [C.TAGS.MARQUEE],
-        FT_SF_TIMER: [C.TAGS.TIMER],
-        FT_SF_CLOCK: [C.TAGS.CLOCK],
-        FT_SF_TODO_LIST: [C.TAGS.TODO_LIST],
-        FT_SF_WEATHER: [C.TAGS.WEATHER],
-        FT_SF_SUN_POSITION: [C.TAGS.SUN_POSITION],
-        FT_SF_MOON_POSITION: [C.TAGS.MOON_POSITION],
-        FT_SF_USER_LOCATION: [C.TAGS.USER_LOCATION],
-
-        FT_SF_LOOP_EXAMPLE: [C.TAGS.LOOP_EXAMPLE],
-        FT_SF_SYNCHROUS_EXAMPLE: [C.TAGS.SYNCHRONOUS_EXAMPLE],
-        FT_SF_ASYNC_EXAMPLE: [C.TAGS.ASYNCHRONOUS_EXAMPLE],
-    }
-
-    const FEATURE_TEST_SUBFIELD_CONFIGS = {
-        FT_SF_MARQUEE: {
-            marquee_config: new MarqueeConfig({
-                text: 'hello world',
-                speed: 1,
-                direction: 'right'
-            })
-        },
-        FT_SF_TIMER: {
-            timer_config: new TimerConfig({
-                duration: 10, // seconds
-                sound: 'ding'
-            })
-        },
-        FT_SF_CLOCK: {
-            clock_config: new ClockConfig({
-                // use the user's timezone by default
-                timezone: 'default', 
-                getTime(){
-                    return Date.now();
-                }
-            })
-        },
-        FT_SF_TODO_LIST: {
-            todo_list_config: new TodoListConfig({
-                items: [
-                    new CompleteableField({
-                        content: 'test todo item',
-                        completed: false
-                    })
-                ]
-            })
-        },
-        FT_SF_WEATHER: {
-            weather_config: new WeatherConfig({
-                // TODO: show how we can wait for the user location field to resolve and then use that value
-                getWeather(){
-                    return 'sunny';
-                }
-            })
-        },
-        FT_SF_SUN_POSITION: {
-            sun_position_config: new SunPositionConfig({
-                // TODO: show how we can wait for the user location field to resolve and then use that value
-                getSunPosition(){
-                    return 'high';
-                }
-            })
-        },
-        FT_SF_MOON_POSITION: {
-            moon_position_config: new MoonPositionConfig({
-                // TODO: show how we can wait for the user location field to resolve and then use that value
-                getMoonPosition(){
-                    return 'high';
-                }
-            })
-        },
-        FT_SF_USER_LOCATION: {
-            user_location_config: new UserLocationConfig({
-                getUserLocation(){
-                    return 'USA';
-                }
-            })
-        },
-        FT_SF_LOOP_EXAMPLE: {
-            loop_example_config: new LoopExampleConfig({
-                getLoopExample(){
-                    return 'loop example';
-                }
-            })
-        },
-        FT_SF_SYNCHROUS_EXAMPLE: {
-            synchronous_example_config: new SynchronousExampleConfig({
-                getSynchronousExample(){
-                    return 'synchronous example';
-                }
-            })
-        },
-        FT_SF_ASYNC_EXAMPLE: {
-            asynchronous_example_config: new AsynchronousExampleConfig({
-                getAsynchronousExample(){
-                    return 'asynchronous example';
-                }
-            })
-        },
-    }
-
-    for(const [key, value] of Object.entries(FEATURE_TEST_SUBFIELD_IDS)){
+    for (const [key, value] of Object.entries(FEATURE_TEST_SUBFIELD_IDS)) {
         //store.commit('deleteField', value);
         store.commit('addField', {
             name: key,
@@ -274,16 +377,117 @@ async function bootSystem() {
     const featureTests = [
         {
             name: 'the system has a default field added by default',
-            test(i){
+            test(i) {
                 return store.state.fields[FEATURE_TEST_ROOT_FIELD_ID] !== undefined;
             }
         },
         {
             name: 'the feature test root field has several child subfields',
-            test(i){
+            test(i) {
                 const field = store.state.fields[FEATURE_TEST_ROOT_FIELD_ID];
                 const childFieldIDs = field.childFieldIDs;
+                if(!childFieldIDs){
+                    console.error("field has no childFieldIDs prop?", {field})
+                    throw new Error("field has no childFieldIDs prop?")
+                }
                 return childFieldIDs.length === Object.keys(FEATURE_TEST_SUBFIELD_IDS).length;
+            }
+        },
+        {
+            name: 'the user can add a new field with a custom name',
+            test(i){
+                const name = 'test field name';
+                const id = store.dispatch('addField', {
+                    name
+                });
+                const field = store.state.fields[id];
+                if(!field){
+                    throw new Error("field does not exist")
+                }
+                if(field.name !== name){
+                    throw new Error("field name does not match")
+                }
+                return true;
+            }
+        },
+        {
+            name: 'the user can assign tags to a field and they will be saved',
+            test(i){
+                const name = 'test field name';
+                const tags = [C.TAGS.TEST_TAG];
+                const id = store.dispatch('addField', {
+                    name,
+                    tags
+                });
+                const field = store.state.fields[id];
+                if(!field){
+                    throw new Error("field does not exist")
+                }
+                if(field.tags.length !== tags.length){
+                    throw new Error("field tags length does not match")
+                }
+                return true;
+            }
+        },
+        {
+            name: 'fields can have parent field ids specified, when they are, the parent\'s childFieldIDs are updated',
+            test(i){
+                const name = 'test field name';
+                const tags = [C.TAGS.TEST_TAG];
+                const id = store.dispatch('addField', {
+                    name,
+                    tags
+                });
+                const field = store.state.fields[id];
+                if(!field){
+                    throw new Error("field does not exist")
+                }
+                if(field.tags.length !== tags.length){
+                    throw new Error("field tags length does not match")
+                }
+                return true;
+            }
+        },
+        // SINCE FIELDS CAN BE ARBITRARILY REFERENCED MULTIPLE TIMES BY MULTIPLE OTHER FIELDS,
+        // THERE WILL ALWAYS BE ONE PARENT FIELD, THE FIELD THAT CREATED THE SUBFIELD,
+        // BUT THERE WILL ALSO BE "VIRTUAL" PARENTS AND 'VIRTUAL" CHILDREN THAT ARE JUST REFERENCES TO ARBITRARY FIELDS...
+        {
+            name: 'fields can be virtually related to any other fields, even themselves, multiple times in a given FieldView',
+            test(i){
+                const name = 'testRootField_001';
+                const tags = [C.TAGS.TEST_TAG];
+                const rootFieldID = store.dispatch('addField', {
+                    id: name, // override auto-assigned id for fixed test id
+                    name,
+                    tags
+                });
+                // fields[name] would work here too
+                const rootField = store.state.fields[rootFieldID];
+                if(!rootField){
+                    throw new Error("rootField does not exist")
+                }
+                // use our testing DSL to simplify this test
+                // we use this to make our tests more readable,
+                // and keep our auto-generated documentation up to date
+                // this helps with issue tracking, and project management
+                // it's the whole purpose we're going through the exercise of writing this code (with CHATGPT's help)
+                // it's why we're dog-fooding this system
+                // it's why we're doing it
+                // cause if Notes, Reminders, Workflowy, Clickup, Emails, Messages, Chatrooms, Forums, Wikis, Podcasts had solved these issues, they'd all be one mega-platform
+                // but they're not, the market is still deciding the best forms of all of these interactive platforms
+                // the technology is not like cards which have been around for a century
+                // social media is a baby in comparison
+                // digital content creation and management is still in a nascent stage
+                // that's why we're trying to level the playing field like Flash did
+                // like unity and unreal engine almost do
+                // like the http web standards allow us to do efficiently
+                // like roblox and dreams and gravity sketch and figma and google docs ALMOST do
+                // but it's still fractured
+                // it's what the sims and roller coaster tycoon make us feel when we play them
+                // applied to the dollhouse that is our real life
+                // our real chores
+                // our real responsibilities,
+                // our real honsest accountability to ourselves and those around us
             }
         }
 
@@ -651,9 +855,9 @@ async function bootSystem() {
         //         return testStacksAfter.length === 0;
         //     }
         // },
-        
+
         // Add more feature tests here
-        
+
         // ... {name, test(i)},
 
         // {
@@ -687,11 +891,11 @@ async function bootSystem() {
 
     // todo: safe mode
     // todo: parallel sandboxes
-    
+
 
     // todo: boot prefs
     const skipSelfTest = false;
-    if(!skipSelfTest){
+    if (!skipSelfTest) {
         runFeatureTests();
     }
 
@@ -719,10 +923,10 @@ async function bootSystem() {
  * refactoring this from using Stacks/Cards to represent the system
  * to using Fields of Fields
  */
-function runFeatureTests(){
+function runFeatureTests() {
     // Loop through the feature tests array
     featureTests.forEach(async (featureTest) => {
-        const existingFeatureField = Object.values(systemStack.fields).find((f) => f.name === featureTest.name);
+        const existingFeatureField = Object.values(store.state.fields).find((f) => f.name === featureTest.name);
         let featureField;
         // If the feature field doesn't exist, add it to the system stack
         if (!existingFeatureField) {
@@ -731,7 +935,7 @@ function runFeatureTests(){
                 parentFieldID: FEATURE_TEST_ROOT_FIELD_ID,
                 tags: [
                     // Fields tagged with test fields have a "passing" property
-                    C.TAGS.FEATURE_TEST_FIELD 
+                    C.TAGS.FEATURE_TEST_FIELD
                 ],
             });
             console.warn('FeatureFieldID:', featureFieldID)
@@ -741,9 +945,10 @@ function runFeatureTests(){
         if (!featureField) {
             throw new Error('could not find or create FeatureField named: ' + featureTest.name);
         }
+        console.warn('testing feature field: ', {featureField})
         // clear any lingering errors (todo: make this an array of errors)
-        featureField.error = null; 
-        
+        featureField.error = null;
+
         let passing;
         try {
 
@@ -757,14 +962,14 @@ function runFeatureTests(){
                 // card.error = e;
                 store.commit('setCardError', { card, error: e })
             } else {
-                console.error('REQUIRED feature test failed "'+featureTest.name+'"');
+                console.error('REQUIRED feature test failed "' + featureTest.name + '"');
                 // rethrow
                 throw e;
             }
         }
 
         // if passing === -1, it's pending
-        store.commit('setFieldPassingStatus', { featureField, passing })
+        store.commit('setFieldPassingStatus', { field:featureField, passing })
 
     });
 }
@@ -776,87 +981,3 @@ function runFeatureTests(){
     window.bootSystem = bootSystem;
     window.runFeatureTests = runFeatureTests;
 })()
-
-class MarqueeConfig {
-    text = 'hello world'
-    speed = 1
-    direction = 'right'
-    // computed cache
-    update(){
-        
-    }
-
-    // our render loop would probably make this marquee reset every frame
-    // rather than letting it be left alone in the DOM for the browser to handle
-    // maybe we need a renderOnce for "static" fields that don't want to be re-rendered every frame
-    // OR maybe we re-implment the browser's marquee tag in our own way
-    // that would give us more customization options and control in terms of pausing, etc...
-    renderOnce(){
-        return `<marquee style="">${this.text}</marquee>`
-    }
-}
-
-class TimerConfig {
-    duration = 10 // seconds
-    sound = 'ding'
-    // computed cache
-    currentTime = null
-    startTime = null
-    expired = false
-    start(){
-        this.startTime = Date.now();
-    }
-    // TODO: allow this Field to be paused and resumed
-    // TODO: allow this Field to de-register from the executor when it's done
-    // so we don't keep calling it once it has no more work to do
-    update(){
-        this.currentTime = Date.now();
-
-        if(!this.expired){
-            // check if we have expired
-            if(this.currentTime - this.startTime >= this.duration){
-                this.expired = true;
-                // play sound
-                console.warn('todo play sound '+this.sound);
-
-                console.warn('Timer Field: todo de-register from executor')
-            }
-        }
-    }
-}
-class ClockConfig {
-    timezone = 'default'
-    // computed cache
-    currentTime = null
-    update(){
-        // recompute current time taking timezone into account
-        this.currentTime = Date.now();
-    }
-}
-
-class CompleteableField extends Field {
-    completed_at = null;
-    constructor(payload){
-        super(payload);
-    }
-    // toggle by passing nothing
-    // set by passing a desired status
-    toggleCompleted(status){
-        if(typeof status === 'undefined'){
-            this.completed_at = this.completed_at ? null : Date.now();
-        }else{
-            this.completed_at = status ? Date.now() : null;
-        }
-    }
-
-}
-
-class TodoListConfig {}
-class CompleteableConfig {}
-class WeatherConfig {}
-class SunPositionConfig {}
-class MoonPositionConfig {}
-class UserLocationConfig {}
-class LoopExampleConfig {}
-class SynchronousExampleConfig {}
-class AsynchronousExampleConfig {}

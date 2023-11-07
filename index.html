@@ -153,9 +153,11 @@
                 
             -->
             <!-- debug view current fields -->
+            <!-- Field Template -->
             <h1>Fields:</h1>
             <div v-for="(fieldID, index) in currentFieldView">
-                ID:{{index}}: {{fields[fieldID].name}}
+                Field:{{fieldID}} ({{index}}): {{fields[fieldID].name}}<br/>
+                Tags({{fields[fieldID].tags.length}}): {{fields[fieldID].tags.join(", ")}}<br/>
             </div>
 
 

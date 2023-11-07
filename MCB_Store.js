@@ -366,7 +366,7 @@ class Field {
 
         this.tags = tags ?? [];
 
-        this.childFieldIDs = childFieldIDs;
+        this.childFieldIDs = childFieldIDs ?? [];
 
         this.parentFieldID = parentFieldID;
 
@@ -911,6 +911,9 @@ function setupStore(){
             setTheme(s, theme){
                 s.theme = theme;
             },
+            setCurrentThemeIndex(s, index){
+                s.currentThemeIndex = index;
+            },
             setShowPopup(s, showPopup) {
                 s.showPopup = showPopup;
             },
@@ -1073,10 +1076,19 @@ function setupStore(){
                 s.stacks[card.stackId].flagDirty();
             },
             setFieldPassingStatus(s, { field, passing }){
+                if(!s.fields[field.id]){
+                    console.error('setFieldPassingStatus: field not found', { field, field_ids: Object.keys(s.fields) });
+                    return;
+                }
                 s.fields[field.id].passing = passing;
             },
-            setCardError(s, { card, error }) {
-                s.stacks[card.stackId].cards[card.id].error = error;
+            // TODO: make field errors an array...
+            setFieldError(s, { fieldID, error }) {
+                if(!s.fields[fieldID]){
+                    console.error('setFieldError: field not found', { fieldID, field_ids: Object.keys(s.fields) });
+                    return;
+                }
+                s.field[fieldID].error = error;
             },
             deleteCard(s, { stackId, cardID }) {
                 if (s.skip_ask_before_delete || confirm('Are you sure?!')) {
@@ -1182,9 +1194,10 @@ function setupStore(){
             },
 
             addField(s, payload){
-                const new_id = payload?.id ?? ''+Date.now();
-                s.fields[new_id] = new Field(payload ?? {});
-                s.lastFieldID = new_id
+                const newField = new Field(payload ?? {});
+                s.fields[newField.id] = newField
+                s.field_views.default_order.push(newField.id);
+                s.lastFieldID = newField.id
             },
             deleteField(s, fieldID){
                 if(!s.fields[fieldID]){
