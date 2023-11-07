@@ -137,6 +137,8 @@ const DEFAULT_STATE = {
         },
 
         TAGS: {
+            // used for cleaning up all feature test fields by tag...
+            FEATURE_TEST_FIELD: 'featureTestField',
 
             EXECUTABLE: 'executable',
             FLAGGABLE: 'flaggable',
@@ -320,8 +322,33 @@ class TagFlaggable  {
     }
 }
 class Field {
-    constructor({parentFieldID, childFieldIDs, tags}){
+    id = null
+    name = null
+    sandboxID = null
+    parentFieldID = null
+    childFieldIDs = []
+    tags = []
+
+    defaultEntryPoint = null
+    entry_points = {}
+    literals = {}
+
+    constructor({
+        id, 
+        name,
+        sandboxID, 
+        parentFieldID, 
+        childFieldIDs, 
+        tags
+    }){
+        this.id = id ?? 'field_'+Date.now();
+        this.name = name ?? this.id;
+        this.sandboxID = sandboxID;
         // fields hold references to literals, and other fields
+        // you can think of them as sub fields, or child fields
+        // but really, they're non-heirarchical and any arbitrary field can be defined with
+        // first-order relationships to any other fields, like nodes in a graph
+
         // all fields are stored in the Store in a flat map
         // we do not pass fields Class Instance Objects around, we only pass around their String IDs
         // this is because, for performance, we want to be able to look up data in the shallowest 
@@ -342,6 +369,24 @@ class Field {
         this.childFieldIDs = childFieldIDs;
 
         this.parentFieldID = parentFieldID;
+
+        // if this.sandboxID is not null,
+        // see if the sandbox has a rootFieldID
+        // if not, set it to this field
+        if(this.sandboxID && !store.state.sandboxes[this.sandboxID]){
+            //throw new Error("sandbox not found "+this.sandboxID)
+            console.error("Field Constructor sandbox not found " + this.sandboxID + ' adding field named: '+ this.name)
+        }else if(this.sandboxID){
+            // console.log('referring to sandbox',{
+            //     sID: this.sandboxID,
+            //     availableSBIDS: Object.keys(store.state.sandboxes)
+            // })
+            // TODO: add constructor option that allows us to FORCE override the field when it is set
+            store.state.sandboxes[this.sandboxID].registerField(this.id);
+        }else{
+            // noop, no sandbox to reference
+        }
+        
     }
 
     setLiteral(literalName, literalValue){
@@ -358,11 +403,58 @@ class Field {
  * by default there's one
  * 
  * but by design, we can have multiple executors to run in parallel
+ * 
+ * NOTE: since, by design, fields can contain arbitrary references
+ * there is a possibility of infinite recursion and circular references
+ * because of this, the executor needs to keep track of which field IDs it has already executed during a given pulse step, to prevent infinite recursion
  */
 class Executor {
     sandboxID = null;
+    // track which ids we've already executed this pulse
+    // to prevent infinite recursion
+    fieldIDsPulsedThisPulse = [];
     constructor({sandboxID}){
         this.sandboxID = sandboxID;
+    }
+    get sandbox(){
+        return store.state.sandboxes[this.sandboxID]
+    }
+    pulse(){
+        // reset tracking field
+        this.fieldIDsPulsedThisPulse = [];
+        if(!this.sandboxID){
+            //console.warn('Executor.pulse() no sandboxID found')
+            return;
+        }
+        const sb = this.sandbox;
+        if(!sb){
+            throw new Error("sandbox not found "+this.sandboxID)
+        }
+        if(!sb.rootFieldID){
+            console.warn('Executor.pulse() no root field found for sandbox '+this.sandboxID)
+            return;
+        }
+        const rootField = store.state.fields[sb.rootFieldID];
+        if(!rootField){
+            console.warn('Executor.pulse() no root field found for sandbox '+this.sandboxID)
+            return;
+        }
+
+        // if the root field is tagged as an executable, we should throw an error
+        // the root field of any sandbox should probably be some kind of executable type, no?
+
+        this.executeField(rootField);
+    }
+
+    executeField(field){
+        this.fieldIDsPulsedThisPulse.push(field.id);
+        // TODO: could pass in things like the current frame count or delta time
+        // but we can also track/expose these things in singleton classes that can be
+        // referenced on an as-needed basis, rather than having to pass around context
+        // to each pulse
+        // > but if that does become helpful, we can pass a context down here
+        // > like a current stack for a rudimentary call stack for debugging, etc...
+        field.pulse();
     }
 }
 
@@ -370,6 +462,8 @@ class Executor {
 class Sandbox {
     id = null;
     executor = null;
+    rootFieldID = null;
+    rootFieldIDs = [];
     constructor({id}){
         this.id = id ?? 'sandbox_'+Date.now();
         this.executor = new Executor(this.id);
@@ -388,6 +482,16 @@ class Sandbox {
 
     registerStepWithExecutor(step){
         // register callback to execute the step
+    }
+
+    registerField(fieldID){
+        // assume the first field we register is the root field
+        if(this.rootFieldID === null){
+            this.rootFieldID = fieldID;
+        }
+        this.rootFieldIDs.push(fieldID);
+        // de-dupe
+        this.rootFieldIDs = [...new Set(this.rootFieldIDs)];
     }
 
     // associate a field with this Sandbox
@@ -956,6 +1060,7 @@ function setupStore(){
                 s.stacks[card.stackId.toString()].cards[card.id.toString()].completed_at = state ? Date.now() : null;
                 console.log('set CompletedAt to:', s.stacks[card.stackId.toString()].cards[card.id.toString()].completed_at)
             },
+            /** @deprecated @use setFieldPassingStatus */
             setCardPassingStatus(s, { card, passing }) {
                 // we should be passing in an index to the stack card array here :G
                 //card.passing = passing;
@@ -966,6 +1071,9 @@ function setupStore(){
                 s.stacks[card.stackId].cards[card.id].passing = passing;
                 // bust cache of stack card status counts
                 s.stacks[card.stackId].flagDirty();
+            },
+            setFieldPassingStatus(s, { field, passing }){
+                s.fields[field.id].passing = passing;
             },
             setCardError(s, { card, error }) {
                 s.stacks[card.stackId].cards[card.id].error = error;
@@ -1095,6 +1203,11 @@ function setupStore(){
             }
         },
         actions: {
+
+            addField(context, payload){
+                context.commit('addField', payload)
+                return context.state.lastFieldID
+            },
             deleteSelectedStacks(context){
                 if(confirm(`Are you sure you want to delete ${all_these_things} ?`)){
                     context.state.selectedStacks.forEach(stackId => {
@@ -1175,6 +1288,26 @@ function setupStore(){
                     // clean up orphans
                     this.state.stacks[id.toString()].card_order = this.state.stacks[id.toString()].card_order.filter(cardId => !orphanedCardIds.includes(cardId));
                 }
+
+                // hydrate Executors
+                for (let id in this.state.executors) {
+                    this.state.executors[id.toString()] = new Executor(this.state.executors[id.toString()]);
+                }
+
+                // hydrate Sandboxes
+                for (let id in this.state.sandboxes) {
+                    this.state.sandboxes[id.toString()] = new Sandbox(this.state.sandboxes[id.toString()]);
+                }
+
+                // hydrate Fields
+                for (let id in this.state.fields) {
+                    this.state.fields[id.toString()] = new Field(this.state.fields[id.toString()]);
+                    //this.state.fields[id.toString()].tags = this.state.fields[id.toString()].tags ?? [];
+                }
+
+                
+
+                
     
                 if (!window.bootSystem) {
                     console.warn('bootSystem not found, skipping boot');

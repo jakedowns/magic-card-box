@@ -66,12 +66,21 @@ async function bootSystem() {
     const FEATURE_TEST_SANDBOX_ID = 'featureTestSandbox';
     const FEATURE_TEST_ROOT_FIELD_ID = 'featureTestRootField';
     //store.commit('deleteSandbox', FEATURE_TEST_SANDBOX_ID) // delete if exists
-    store.commit('addSandbox', {id: FEATURE_TEST_SANDBOX_ID}) // this would technically overwrite it anyway
+    store.commit('addSandbox', {
+        id: FEATURE_TEST_SANDBOX_ID
+    }) // this would technically overwrite it anyway
     const featureTestSandbox = store.state.sandboxes[FEATURE_TEST_SANDBOX_ID];
 
     // delete any "FEATURE_TEST_ROOT_FIELD_ID" before recreating our test root field to prevent it from duplicating on each boot
     //store.commit('deleteField', FEATURE_TEST_ROOT_FIELD_ID);
 
+    // NOTE: when we add a field,
+    // WHEN we pass a sandboxID
+    // the sandbox will automatically attempt to set the field as the rootFieldID of the sandbox
+    // if the sandbox already has a rootFieldID, we will ignore this step
+    // unless we have specified that we want to force override the rootFieldID and set the newly added 
+    // field as the root field (entrypoint) of the sandbox
+    // so the executor knows where to begin execution for the sandbox / recursive field map
     store.commit('addField', {
         name: FEATURE_TEST_ROOT_FIELD_ID, // can be any string
         // we're going to use a forced id so we can delete it on boot
@@ -217,8 +226,6 @@ async function bootSystem() {
         })
     }
 
-    debugger;
-
     // in the gui these composable options provided by tags
     // will be helpful for no-code users
     // on the code side, they're a little cumbersome,
@@ -265,6 +272,23 @@ async function bootSystem() {
 
     // Define the feature tests as an array of objects
     const featureTests = [
+        {
+            name: 'the system has a default field added by default',
+            test(i){
+                return store.state.fields[FEATURE_TEST_ROOT_FIELD_ID] !== undefined;
+            }
+        },
+        {
+            name: 'the feature test root field has several child subfields',
+            test(i){
+                const field = store.state.fields[FEATURE_TEST_ROOT_FIELD_ID];
+                const childFieldIDs = field.childFieldIDs;
+                return childFieldIDs.length === Object.keys(FEATURE_TEST_SUBFIELD_IDS).length;
+            }
+        }
+
+
+
         // {
         //     name: 'The system loads users previous session (if any)',
         //     test(i) {
@@ -673,34 +697,53 @@ async function bootSystem() {
 
     // --- //
     // Begin our main execution loop
-    let interrupt = false;
-    while(!interrupt){
+    // let interrupt = false;
+    // while(!interrupt){
+    // }
+    const mainLoop = () => {
+        // starting with the root field, pulse the executor
+        // it will walk over all subfields recursively, pulsing any that are executable
+        // and then it will pulse any fields that are observing the return values of those fields
+        const rootField = store.state.fields[FEATURE_TEST_ROOT_FIELD_ID];
+        const rootSandbox = store.state.sandboxes[rootField.sandboxID];
+        const rootExecutor = rootSandbox.executor;
+        rootExecutor.pulse();
 
+        requestAnimationFrame(mainLoop);
     }
+    requestAnimationFrame(mainLoop);
 }
 
+/**
+ * refactor note:
+ * refactoring this from using Stacks/Cards to represent the system
+ * to using Fields of Fields
+ */
 function runFeatureTests(){
     // Loop through the feature tests array
-    featureTests.forEach((featureTest) => {
-        const existingFeatureCard = Object.values(systemStack.cards).find((c) => c.content === featureTest.name);
-        let card;
-        if (!existingFeatureCard) {
-            // need a good way to get a ref to the card back
-            // cause otherwise we have to do a looped .find again
-            store.commit('addCard', {
-                stackId: SYSTEM_STACK_ID,
-                tags: [TAG_HIDE_COMPLETE_TOGGLE],
-                content: featureTest.name
+    featureTests.forEach(async (featureTest) => {
+        const existingFeatureField = Object.values(systemStack.fields).find((f) => f.name === featureTest.name);
+        let featureField;
+        // If the feature field doesn't exist, add it to the system stack
+        if (!existingFeatureField) {
+            let featureFieldID = await store.dispatch('addField', {
+                name: featureTest.name,
+                parentFieldID: FEATURE_TEST_ROOT_FIELD_ID,
+                tags: [
+                    // Fields tagged with test fields have a "passing" property
+                    C.TAGS.FEATURE_TEST_FIELD 
+                ],
             });
-            const mostRecentlyAddedCardID = systemStack.card_order[systemStack.card_order.length - 1]
-            card = systemStack.cards[mostRecentlyAddedCardID];
+            console.warn('FeatureFieldID:', featureFieldID)
+            featureField = store.state.fields[featureFieldID];
         }
-        card = card ?? existingFeatureCard;
-        if (!card) {
-            throw new Error('could not find or create FeatureTestCard named: ' + featureTest.name);
+        featureField = featureField ?? existingFeatureField;
+        if (!featureField) {
+            throw new Error('could not find or create FeatureField named: ' + featureTest.name);
         }
-        card.error = null; // clear any lingering errors
-        // If the feature card doesn't exist, add it to the system stack
+        // clear any lingering errors (todo: make this an array of errors)
+        featureField.error = null; 
+        
         let passing;
         try {
 
@@ -708,19 +751,20 @@ function runFeatureTests(){
         } catch (e) {
             if (!featureTest.required) {
                 // continue
-                console.error('feature test failed "' + featureTest.name + '"');
+                console.error('unrequired feature test failed "' + featureTest.name + '"');
                 console.error(e);
                 // attach error for output
                 // card.error = e;
                 store.commit('setCardError', { card, error: e })
             } else {
+                console.error('REQUIRED feature test failed "'+featureTest.name+'"');
                 // rethrow
                 throw e;
             }
         }
 
         // if passing === -1, it's pending
-        store.commit('setCardPassingStatus', { card, passing })
+        store.commit('setFieldPassingStatus', { featureField, passing })
 
     });
 }
