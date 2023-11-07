@@ -1,4 +1,5 @@
 const SYSTEM_STACK_ID = '100';
+const FIELD_STACK_ID = '101';
 
 function bootSystem() {
     // verify a stack exists which represents the system
@@ -13,6 +14,72 @@ function bootSystem() {
         collapsed: store.state.stacks[SYSTEM_STACK_ID]?.collapsed ?? false,
         closed: store.state.stacks[SYSTEM_STACK_ID]?.closed ?? false
     });
+
+    // FIELD REFACTOR NOTE:
+    // when it comes time to refactor this bit of code,
+    // i think we should rename SystemStack to SelfTestStack or BootStack
+    // i'm going to create a new "field" stack for the new field refactor
+    // we are moving away from cards and stacks to Fields of Fields
+    // so we need a new stack to represent the field
+    // BUT WE ALSO NEED a meta stack to represent the system's internal representation of a field
+    // if that makes sense, like not an Instance or a Factory, but the definition of a literal field
+    // make sure we have a Field Field
+    // could this be NewField???
+    store.commit('addField', {
+        name: 'rootField', // can be any string
+        // the entry point to an entrypoint is a root field
+        field_type: store.state.CONST.TYPES.ROOT_FIELD,
+        tags: [
+            store.state.CONST.TAGS.TIMER
+        ],
+        // since we included Timer tag, this field will be added to the timer stack,
+        // we need to place our configuration here so the tag can be initialized with the desired values
+        // somewhere we need to document these config options
+        // it might be good to encapsulate them as:
+        timerOptions: new TimerOptions({
+            type: store.state.CONST.TIMER_TYPES.DELAY,
+            // decouping the execution from configuration is probably not a good idea, but for now it's fine
+            delay: 1000,
+            // note: our testing aparatus can mock the javascript time to make time pass faster so the tests can execute faster than realtime
+            callback: () => {
+                console.warn('TODO: alter the store state in some manner that the testing framework can assert against to prove the callback was called after the specified wall-time delay')
+            }
+        })
+    })
+
+    // in the gui these composable options provided by tags
+    // will be helpful for no-code users
+    // on the code side, they're a little cumbersome,
+    // but they exist for a purpose,
+    // and maybe at some point if this project continues,
+    // we can do some coffeescript style pre-processing and 
+    // meta programming to make the code side easier to work with
+    // maybe even our own scripting language
+
+    // attach our testing harness system so we can assert that the callback is called after the delay
+
+    // get the most recently created field id
+    // need to maybe change to dispatch and await a return value
+    // so we don't get bad id if another field is created in the meantime
+    // but for now, this is fine
+    const fieldID = store.state.lastFieldID;
+    const field = store.state.fields[fieldID];
+    // tag it as executable so the executor knows to run it
+    store.commit('fieldAddTags', {
+        fieldId: fieldID,
+        tags: [store.constants.TAGS.EXECUTABLE]
+    })
+
+    // the Executor will iterate over all fields
+    // like DOTs iterates in parallel in Unity's Entity Component System UECS
+    // the Executor will check if the field has the EXECUTABLE tag
+    // if so, it will call it's execute method
+    // and handle shuttling any return values to appropriate associated caching and observing fields
+    // it's updates rippling through fields
+    // it's beautiful
+    // (some day we can move some things to background workers and maybe WASM but for now, this is fine...)
+
+
     // }else{
     //     console.warn('system stack found?',{
     //         stack:store.state.stacks[SYSTEM_STACK_ID]
@@ -422,7 +489,22 @@ function bootSystem() {
     window.featureTestNames = featureTestNames;
     window.systemStack = systemStack;
 
-    runFeatureTests();
+    // todo: safe mode
+    // todo: parallel sandboxes
+    
+
+    // todo: boot prefs
+    const skipSelfTest = false;
+    if(!skipSelfTest){
+        runFeatureTests();
+    }
+
+    // --- //
+    // Begin our main execution loop
+    let interrupt = false;
+    while(!interrupt){
+
+    }
 }
 
 function runFeatureTests(){

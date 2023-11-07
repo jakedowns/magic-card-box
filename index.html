@@ -3,7 +3,11 @@
 <html lang="en">
 
 <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
     <meta charset="UTF-8">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous">
+ 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Magic Card Box</title>
     <script src="https://unpkg.com/vue@next"></script>
@@ -11,6 +15,34 @@
     <script src="./magicCardBox.js"></script>
     <script src="./MCB_Store.js"></script>
     <script src="./system-boot-feature-tests.js"></script>
+    <script src="http://localhost:3010/socket.io/socket.io.js"></script>
+    <script>
+        /** connect to websocket localhost 3010 **/
+        (async()=>{
+            // wait for window.io to be available
+            while(!window.io){
+                console.warn('waiting for window.io to be available...');
+                await new Promise(resolve=>setTimeout(resolve, 1000))
+            }
+            const socket = io('http://127.0.0.1:3010');
+            socket.on('connect', () => {
+                console.log('connected to websocket');
+            });
+            socket.on('disconnect', () => {
+                console.log('disconnected from websocket');
+            });
+            socket.on('message', (message) => {
+                console.log('message from websocket', message);
+            });
+            // define a method that sends a websocket message to the server
+            console.warn('exposing sendSocketMessage to window')
+            window.sendSocketMessage = (payload) => {
+                socket.send(payload);
+            };
+        })()
+
+    </script>
+
     <link rel="stylesheet" href="./magicCardBoxStyles.css">
 </head>
 
@@ -27,8 +59,92 @@
             @touchcancel="handleTouchEnd"
 
             @click="onBGClicked($event)"
-            
             >
+
+            <button @click="generateMethod">GENERATE METHOD</button>
+
+            <button @click="sendTestMessage">SEND TEST MESSAGE</button>
+
+            <button @click="organizeImagesByColor">Organize Images By Color</button>
+            <button @click="uploadFiles">Upload files...</button>
+            
+            <div id="fileDropZone" @dragover.prevent @drop.prevent="uploadFiles">Drop files here to upload</div>
+
+            <!-- START PASTE -->
+            <body style="min-width: 420px;">
+                <div class="container-fluid">
+                
+                    <div id="display" class="row-fluid" style="display: block;">
+                        <div class="span12">
+                            <div class="progress progress-striped active progress-success progress-large">
+                                <div class="bar" id="bar" style="width: 98%; color: white;">19:39</div>
+                            </div>
+                        </div>
+                    </div>
+                
+                    <div id="modify" class="row-fluid" style="display: block;">
+                        <div class="span12">
+                            <button id="cancel" class="offset1 btn btn-danger"><i class="icon-stop icon-white"></i> Stop</button>
+                            <button id="resume" class="offset1 btn btn-success" style="display: none;"><i class="icon-play icon-white"></i> Resume</button>
+                            <button id="pause" class="offset1 btn btn-warning"><i class="icon-pause icon-white"></i> Pause</button>
+                            <button id="restart" class="offset1 btn"><i class="icon-repeat"></i> Restart</button>
+                        </div>
+                    </div>
+                
+                    <div id="settings" class="row-fluid" style="display: none;">
+                        <div class="span12">
+                            <form class="well" name="choices">
+                                <div class="radio"><input type="radio" name="radio" value="0" checked="checked">
+                                <span id="s0">2</span>&nbsp;min</div>
+                
+                                <div class="radio"><input type="radio" name="radio" value="1">
+                                <span id="s1">3</span>&nbsp;min</div>
+                
+                                <div class="radio"><input type="radio" name="radio" value="2">
+                                <span id="s2">15</span>&nbsp;min</div>
+                
+                                <div class="radio"><input type="radio" name="radio" value="3">
+                                <span id="s3">20</span>&nbsp;min</div>
+                
+                                <div>&nbsp;</div>
+                
+                                <button type="button" id="start" class="btn btn-success"><i class="icon-play icon-white"></i> Start</button>
+                                <div id="swapper" style="float: right"><a href="#" id="wrench" class="btn"><i class="icon-wrench"></i> Edit</a></div>
+                
+                                <div>&nbsp;</div>
+                
+                                <button type="button" id="buy" class="btn btn-info" style="display: none;"><i class="icon-shopping-cart icon-white"></i> Buy tones</button>
+                
+                                <div id="tone-settings" style="display: none;">
+                
+                                    <div class="radio"><input type="radio" class="tone" id="chime" name="tone" value="chime" checked="checked">
+                                    <span>Chime</span></div>
+                
+                                    <div class="radio"><input type="radio" class="tone" id="tone" name="tone" value="tone">
+                                    <span>Tone</span></div>
+                                    
+                                    <div class="radio"><input type="radio" class="tone" id="blop" name="tone" value="blop">
+                                    <span>Blop</span></div>
+                                    
+                                    <div class="radio"><input type="radio" class="tone" id="watch" name="tone" value="watch">
+                                    <span>Watch alarm</span></div>
+                                    
+                                    <div class="radio"><input type="radio" class="tone" id="spoon" name="tone" value="spoon">
+                                    <span>Spoon clink</span></div>
+                
+                                    <div class="radio"><input type="radio" class="tone" id="ice" name="tone" value="ice">
+                                    <span>Ice in glass</span></div>
+                
+                                    <div class="radio"><input type="radio" class="tone" id="turkey" name="tone" value="turkey">
+                                    <span>Turkey gobble</span></div>
+                
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                
+                </div>
+            <!-- END PASTE -->
 
             <!-- popup window -->
             <div class="popup-overlay" v-if="showPopup">
@@ -267,7 +383,7 @@
         background-color: black;
        }
     </style>
-
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-kenU1KFdBIe4zVF0s0G1M5b4hcpxyD9F7jL+jjXkk+Q2h455rYXK/7HAuoJl+0I4" crossorigin="anonymous"></script>
 </body>
 
 </html>

@@ -431,6 +431,10 @@ const app = Vue.createApp({
             selectedClosedStack.value = '';
         }
 
+        const generateMethod = (name, fn) => {
+            store.dispatch('generateMethod', {name, fn});
+        }
+
 
         watch(selectedClosedStack, (newVal, oldVal) => {
             // when the selected closed stack changes to a value other than ''
@@ -488,13 +492,48 @@ const app = Vue.createApp({
             set: (value) => store.commit('setCurrentThemeIndex', value)
         });
 
+        window.setCurrentThemeIndex = (index) => {
+            store.commit('setCurrentThemeIndex', index);
+            // broadcast it to the server
+        }
+
+        window.sendTestMessage = () => {
+            window.sendSocketMessage({
+                type: 'message',
+                payload: {
+                    message: 'hello world'
+                }
+            });
+        }
+
         // RETURN SETUP OBJECT
         // TODO: make building this a multi-phase process
         // 1. build the object
         // 2. merge in the computed properties
         // 3. merge in the methods
         // 4. return the object
+
+        const saveMethod = (name, fn) => {
+            store.commit('saveMethod', {name, fn});
+        }
+        const callMethod = (name) => {
+            store.state.methods[name]();
+        }
+        const showMethod = (name) => {
+            let output = store.state.methods[name].toString();
+            console.warn('showMethod', name, output)
+            return output;
+        }
+
+
         return {
+            // generates it in local memory and the remote server
+            // or do we just let the localstorage replicate to the server?
+            // we'll see...
+            generateMethod,
+
+            sendTestMessage,
+
             stacks,
             newCardNames,
             passFailPendingString,
@@ -645,3 +684,114 @@ document.addEventListener("DOMContentLoaded", async function(event) {
     app.use(store);
     app.mount('#app');
 });
+
+/**
+ * 
+ */
+class Class {
+    constructor(name){
+        this.type = 'Class'
+        this.name = name
+    }
+}
+
+class Method {
+    constructor(name){
+        this.type = 'Method'
+        this.name = name
+    }
+}
+
+class Callback {
+    constructor(name){
+        this.type = 'Callback'
+        this.name = name
+    }
+}
+
+class Camera {
+    constructor(){
+
+    }
+}
+
+// you can have multiple nested instances of these
+class InfiniteCanvas {
+    constructor(){
+        this.canvas_views = []
+        
+        // the "frame"
+        this.canvas = null
+
+        this.cameras = {
+            "rootCamera": new Camera()
+        }
+        this.defaultCameraID = "rootCamera"
+        this.activeCameraID = null
+    }
+}
+
+/** todo extend a common open source math lib for vector types */
+class SpacetimePoint {
+    constructor(x,y,z,w){
+        this.type = 'SpacetimePoint'
+        this.x = x
+        this.y = y
+        this.z = z
+    }
+}
+
+// Fields must contain at least on default entrypoint
+// multiple entrypoints can be defined
+// if no default is specified, the first defined entrypoint is used
+class FieldEntrypoint extends SpacetimePoint {
+
+}
+
+class DataTable {
+
+}
+
+class Stream {
+
+}
+
+/*
+    We don't just offer standard programming primitives
+    we offer higher-level abstractions that are more
+    user-friendly and mobile-xr-first
+*/
+
+// some things are selectable
+class Selectable {}
+
+// some things are sortable (via given properties)
+class Sortable {}
+// sorting happens within volumes which 
+// use expensive tracking algorithms to monitor
+// the position of objects within the volume
+class SortingArea {}
+class SortingStack {}
+
+// Some things in the system are grabbable by grabbers
+class Grabbable {}
+class Grabber {}
+
+// The system utilizies 
+// Graphs and Trees as just two means of visualizing
+// data within the system
+class Node {}
+class Graph {}
+class Tree {}
+
+// Primitives for Vuex-like Flux-based central DataStore
+// TODO: extend with namespaced modules...
+// for now, just use a single global store
+class Action {}
+class Store {}
+
+// Local and Networked EventSystems
+class ActionDispatcher {}
+class ActionReceiver {}
+
+/* Using these primitives, and our remote data storage */
