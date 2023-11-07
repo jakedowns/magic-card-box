@@ -398,7 +398,8 @@ async function bootSystem() {
             test(i){
                 const name = 'test field name';
                 const id = store.dispatch('addField', {
-                    name
+                    name,
+                    tags: [C.TAGS.TEST_TAG] // for cleanup after self-test
                 });
                 const field = store.state.fields[id];
                 if(!field){
@@ -960,7 +961,7 @@ function runFeatureTests() {
                 console.error(e);
                 // attach error for output
                 // card.error = e;
-                store.commit('setCardError', { card, error: e })
+                store.commit('setFieldError', { fieldID, error: e })
             } else {
                 console.error('REQUIRED feature test failed "' + featureTest.name + '"');
                 // rethrow
