@@ -344,9 +344,9 @@ const app = Vue.createApp({
         };
 
         onMounted(async () => {
-            // don't execute this until window.bootSystem is defined
-            while (typeof window.bootSystem === 'undefined') {
-                console.warn('waiting for window.bootSystem to be defined');
+            // don't execute this until window.bootSystemAsync is defined
+            while (typeof window.bootSystemAsync === 'undefined') {
+                console.warn('waiting for window.bootSystemAsync to be defined');
                 // wait 1 second
                 await new Promise((resolve) => setTimeout(resolve, 1000));
             }

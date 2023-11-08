@@ -1379,8 +1379,8 @@ function setupStore(){
 
                 
     
-                if (!window.bootSystem) {
-                    console.warn('bootSystem not found, skipping boot');
+                if (!window.bootSystemAsync) {
+                    console.warn('bootSystemAsync not found, skipping boot');
                     return;
                 }
                 // boot system

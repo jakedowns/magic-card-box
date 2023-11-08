@@ -1263,6 +1263,6 @@ function runFeatureTests() {
 
 (() => {
     // expose these things on the window when the js file is loaded
-    window.bootSystem = bootSystem;
+    window.bootSystemAsync = bootSystemAsync;
     window.runFeatureTests = runFeatureTests;
 })()
