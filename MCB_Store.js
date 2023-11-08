@@ -362,7 +362,7 @@ class Field {
         childFieldIDs, 
         tags
     }){
-        this.id = id ?? 'field_'+Date.now();
+        this.id = id ?? 'field_'+performance.now();
         this.name = name ?? this.id;
         this.sandboxID = sandboxID;
         // fields hold references to literals, and other fields
@@ -440,7 +440,7 @@ class Executor {
     // to prevent infinite recursion
     fieldIDsPulsedThisPulse = [];
     constructor({id,sandboxID}){
-        this.id = id ?? 'exe_'+Date.now();
+        this.id = id ?? 'exe_'+performance.now().replace('.','_');
         this.sandboxID = sandboxID;
     }
     get sandbox(){
@@ -502,7 +502,7 @@ class Sandbox {
     rootFieldID = null;
     rootFieldIDs = [];
     constructor({id}){
-        this.id = id ?? 'sandbox_'+Date.now();
+        this.id = id ?? 'sandbox_'+performance.now().replace('.','_');
         // TODO: move some of this to executor class...
         this.programCounter = 0;
         this.steps = [];
@@ -962,7 +962,7 @@ function setupStore(){
                 s.showPopup = showPopup;
             },
             addStack(s, { name, forceId, tags, collapsed, closed }) {
-                const id = forceId ?? Date.now();
+                const id = forceId ?? performance.now().replace('.','_');
                 s.stacks[id.toString()] = new Stack({
                     id,
                     name,
@@ -1034,14 +1034,17 @@ function setupStore(){
             setCardColumns(s, count) {
                 s.cardColumns = count
             },
+            /** @deprecated */
             setStackFocused(s, { stackId, focused }) {
                 s.stacks[stackId.toString()].focused = focused;
             },
+            /** @deprecated */
             deleteStackSilent(s, id) {
                 delete s.stacks[id.toString()];
                 // remove from stack_order
                 s.stack_order.splice(s.stack_order.indexOf(id.toString()), 1);
             },
+            /** @deprecated */
             deleteStack(s, id) {
                 if (window.confirm('Are you sure you want to delete stack \n\n' + s.stacks[id.toString()].name)) {
                     delete s.stacks[id.toString()];
@@ -1049,9 +1052,10 @@ function setupStore(){
                     s.stack_order.splice(s.stack_order.indexOf(id.toString()), 1);
                 }
             },
+            /** @deprecated */
             addCard(s, { stackId, content }) {
                 const card = new Card({
-                    id: `${Date.now()}`,
+                    id: `${performance.now().replace('.','_')}`,
                     content,
                     editing: false,
                     stackId,
@@ -1066,9 +1070,10 @@ function setupStore(){
     
                 s.newCardNames[stackId.toString()] = '';
             },
+            /** @deprecated */
             addFeatureCard(s, { stackId, content }) {
                 const card = new FeatureCard({
-                    id: `${Date.now()}`,
+                    id: `${performance.now().replace('.','_')}`,
                     content,
                     editing: false,
                     stackId,
@@ -1081,10 +1086,11 @@ function setupStore(){
                 s.stacks[stackId.toString()].cards[card.id] = card;
                 s.stacks[stackId.toString()].card_order.push(card.id);
             },
+            /** @deprecated */
             addSubstackAsCard(s, { parentStackId, childStackId }) {
                 // add the child stack as a card to the parent stack
                 const card = {
-                    id: Date.now(),
+                    id: `${performance.now().replace('.','_')}`,
                     content: s.stacks[childStackId].name,
                     editing: false,
                     stackId: parentStackId,
@@ -1227,7 +1233,7 @@ function setupStore(){
             },
 
             addSandbox(s, payload){
-                const new_id = payload?.id ?? ''+Date.now();
+                const new_id = payload?.id ?? ''+performance.now().replace('.','_');
                 s.sandboxes[new_id] = new Sandbox(payload);
                 s.lastSandboxID = new_id
             },
