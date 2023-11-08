@@ -9,6 +9,10 @@ It's a fuzzy future, but we're having fun exploring the possibilities
 the bicycle for the mind just became the jetpack for the brain
 `
 
+// HARD RESET
+// store.state.fields = {}; 
+// store.state.field_views.default_order = []
+
 /**
  * 
  */
@@ -21,7 +25,7 @@ class FieldNotPresentError extends Error {
     constructor(id, extras) {
         // isA(Promise, id)
         if (typeof id?.then === 'function') {
-            throw new Error("id is a promise, not a string literal field id. \n Did you forget to await dispatch('addField')?")
+            throw new Error("id is a promise, not a string literal field id. \n Did you forget to await dispatch('addFieldActionAsync')?")
         }
         // AWAIT ANY PROMISES IN EXTRAS!
         super(id);
@@ -297,9 +301,9 @@ const FEATURE_TEST_SUBFIELD_IDS = {
     FT_SF_MOON_POSITION: 'FT_SF_MOON_POSITION',
     FT_SF_USER_LOCATION: 'FT_SF_USER_LOCATION',
 
-    FT_SF_LOOP_EXAMPLE: 'FT_SF_LOOP_EXAMPLE',
-    FT_SF_SYNCHROUS_EXAMPLE: 'FT_SF_SYNCHROUS_EXAMPLE',
-    FT_SF_ASYNC_EXAMPLE: 'FT_SF_ASYNC_EXAMPLE',
+    FT_SF_LOOP_FN: 'FT_SF_LOOP_FN',
+    FT_SF_SYNC_FN: 'FT_SF_SYNC_FN',
+    FT_SF_ASYNC_FN: 'FT_SF_ASYNC_FN',
 }
 
 let FEATURE_TEST_SUBFIELD_TAGS = {};
@@ -421,9 +425,9 @@ async function bootSystemAsync() {
         FT_SF_MOON_POSITION: [C.TAGS.MOON_POSITION],
         FT_SF_USER_LOCATION: [C.TAGS.USER_LOCATION],
 
-        FT_SF_LOOP_EXAMPLE: [C.TAGS.LOOP_EXAMPLE],
-        FT_SF_SYNCHROUS_EXAMPLE: [C.TAGS.SYNCHRONOUS_EXAMPLE],
-        FT_SF_ASYNC_EXAMPLE: [C.TAGS.ASYNCHRONOUS_EXAMPLE],
+        FT_SF_LOOP_FN: [C.TAGS.LOOP_FN],
+        FT_SF_SYNC_FN: [C.TAGS.SYNC_FN],
+        FT_SF_ASYNC_FN: [C.TAGS.ASYNC_FN],
     }
 
     /** @deprecated */
@@ -432,17 +436,18 @@ async function bootSystemAsync() {
     // !!! for now, always recreate this stack !!!
     // if it was .closed before, make sure it's .closed
     // if it was .collapsed before, make sure it's .collapsed
-    store.commit('addStack', {
-        name: 'System',
-        //tags: [TAG_TEST_STACK],
-        forceId: SYSTEM_STACK_ID,
-        collapsed: store.state.stacks[SYSTEM_STACK_ID]?.collapsed ?? false,
-        closed: store.state.stacks[SYSTEM_STACK_ID]?.closed ?? false
-    });
+
+    /** @deprecated */
+    // store.commit('addStack', {
+    //     name: 'System',
+    //     //tags: [TAG_TEST_STACK],
+    //     forceId: SYSTEM_STACK_ID,
+    //     collapsed: store.state.stacks[SYSTEM_STACK_ID]?.collapsed ?? false,
+    //     closed: store.state.stacks[SYSTEM_STACK_ID]?.closed ?? false
+    // });
 
     // FIELD REFACTOR NOTE:
     // when it comes time to refactor this bit of code,
-    // i think we should rename SystemStack to SelfTestStack or BootStack
     // i'm going to create a new "field" stack for the new field refactor
     // we are moving away from cards and stacks to Fields of Fields
     // so we need a new stack to represent the field
@@ -471,6 +476,9 @@ async function bootSystemAsync() {
     // 2. maybe we keep the fields and let them be deleted separately?
     // 3. maybe we give the option to the user to migrate fields or subfields when they try to delete a field
 
+    // clean up an "SELFTEST_TAG" tagged fields
+    await store.dispatch('actionDeleteFieldsByTag', C.TAGS.SELFTEST_TAG)
+    store.state.field_views.default_order = [];
 
     await store.dispatch('addSandboxAction', {
         name: 'Feature Test Sandbox',
@@ -488,7 +496,7 @@ async function bootSystemAsync() {
     // unless we have specified that we want to force override the rootFieldID and set the newly added 
     // field as the root field (entrypoint) of the sandbox
     // so the executor knows where to begin execution for the sandbox / recursive field map
-    store.commit('addField', {
+    let rootFieldID = await store.dispatch('addFieldActionAsync', {
         name: FEATURE_TEST_ROOT_FIELD_ID, // can be any string
         // we're going to use a forced id so we can delete it on boot
         // could also delete by tag
@@ -498,18 +506,38 @@ async function bootSystemAsync() {
         // so we might need to support an array of sandbox ids
         sandboxID: FEATURE_TEST_SANDBOX_ID,
 
-        // the entry point to an entrypoint is a root field
-        field_type: store.state.CONST.TYPES.ROOT_FIELD, // might not need to distinguish ROOT_FIELD from FIELD type, if there's no parentFieldID, it's a root
+        // Actually we don't WANT the root Field to be cleaned up...
+        // tag for cleanup
+        // tags: [C.TAGS.SELFTEST_TAG],
     })
 
 
-
+    // TODO: part of the "Optional" self test routine
+    // should be verifying that the system has these
+    // test fields and subfields defined
     for (const [key, value] of Object.entries(FEATURE_TEST_SUBFIELD_IDS)) {
+
+        if(!FEATURE_TEST_SUBFIELD_TAGS[key]){
+            throw new Error("FEATURE_TEST_SUBFIELD_TAGS["+key+"] not found")
+        }
+        
+        // verify that FEATURE_TEST_SUBFIELD_TAGS[key] is an ARRAY
+        // TODO: these kinds of checks could be disabled in production builds
+        if(!Array.isArray(FEATURE_TEST_SUBFIELD_TAGS[key])){
+            throw new Error("FEATURE_TEST_SUBFIELD_TAGS["+key+"] is not an array")
+        }
+        
+        if(!C.TAGS.SELFTEST_TAG){
+            throw new Error("C.TAGS.SELFTEST_TAG not found")
+        }
+        if(!C.TAGS.EXECUTABLE){
+            throw new Error("C.TAGS.EXECUTABLE not found")
+        }
 
         const tagsArray = [
             ...FEATURE_TEST_SUBFIELD_TAGS[key],
             ...[
-                C.TAGS.TEST_TAG,
+                C.TAGS.SELFTEST_TAG,
                 // TODO: tags that can decompose into a group of tags
                 // like a tag could indicate that it itself requires other tags
                 C.TAGS.EXECUTABLE
@@ -517,7 +545,7 @@ async function bootSystemAsync() {
         ]
         //console.warn('bootSystem adding subfield', { key, value, tagsArray })
         //store.commit('deleteField', value);
-        store.commit('addField', {
+        const _ = await store.dispatch('addFieldActionAsync', {
             name: key,
             id: value,
             sandboxID: FEATURE_TEST_SANDBOX_ID,
@@ -566,11 +594,13 @@ async function bootSystemAsync() {
     //         stack:store.state.stacks[SYSTEM_STACK_ID]
     //     })
     // }
-    const systemStack = store.state.stacks[SYSTEM_STACK_ID];
-    console.warn('system stack?', {
-        systemStack,
-        um: store.state.stacks[SYSTEM_STACK_ID]
-    })
+    
+    /** @deprecated */
+    // const systemStack = store.state.stacks[SYSTEM_STACK_ID];
+    // console.warn('system stack?', {
+    //     systemStack,
+    //     um: store.state.stacks[SYSTEM_STACK_ID]
+    // })
 
     // Define the feature tests as an array of objects
     const featureTests = [
@@ -596,9 +626,10 @@ async function bootSystemAsync() {
             name: 'the user can add a new field with a custom name',
             async test(i) {
                 const name = 'test field name';
-                const id = await store.dispatch('addField', {
+                const id = await store.dispatch('addFieldActionAsync', {
                     name,
-                    tags: [C.TAGS.TEST_TAG] // for cleanup after self-test
+                    // tag for cleanup after self-test
+                    tags: [C.TAGS.SELFTEST_TAG] 
                 });
                 console.warn('bootSystem FeatureTest ' + i.name, {
                     id,
@@ -620,8 +651,8 @@ async function bootSystemAsync() {
             required: true,
             async test(i) {
                 const name = 'test field name';
-                const tags = [C.TAGS.TEST_TAG];
-                const id = await store.dispatch('addField', {
+                const tags = [C.TAGS.SELFTEST_TAG];
+                const id = await store.dispatch('addFieldActionAsync', {
                     name,
                     tags
                 });
@@ -666,8 +697,8 @@ async function bootSystemAsync() {
             name: 'fields can have parent field ids specified, when they are, the parent\'s childFieldIDs are updated',
             async test(i) {
                 const name = 'test field name';
-                const tags = [C.TAGS.TEST_TAG];
-                const id = await store.dispatch('addField', {
+                const tags = [C.TAGS.SELFTEST_TAG];
+                const id = await store.dispatch('addFieldActionAsync', {
                     name,
                     tags
                 });
@@ -688,8 +719,8 @@ async function bootSystemAsync() {
             name: 'fields can be virtually related to any other fields, even themselves, multiple times in a given FieldView',
             async test(i) {
                 const name = 'testRootField_001';
-                const tags = [C.TAGS.TEST_TAG];
-                const rootFieldID = await store.dispatch('addField', {
+                const tags = [C.TAGS.SELFTEST_TAG];
+                const rootFieldID = await store.dispatch('addFieldActionAsync', {
                     id: name, // override auto-assigned id for fixed test id
                     name,
                     tags
@@ -697,7 +728,7 @@ async function bootSystemAsync() {
                 // fields[name] would work here too
                 const rootField = store.state.fields[rootFieldID];
                 if (typeof rootFieldID?.then === 'function') {
-                    throw new Error("rootFieldID is a promise, not a string literal field id. \n Did you forget to await dispatch('addField')?")
+                    throw new Error("rootFieldID is a promise, not a string literal field id. \n Did you forget to await dispatch('addFieldActionAsync')?")
                 }
                 if (!rootField) {
                     throw new Error("rootField does not exist RootFieldID: " + rootFieldID)
@@ -735,20 +766,26 @@ async function bootSystemAsync() {
                 // then we pulse the field one step
                 // then the field should have a value of 1 + {the value of the other field}
 
+                if(!C.TAGS.LITERAL){
+                    throw new Error("C.TAGS.LITERAL not found")
+                }
+
                 // given a fresh field
+                // TODO abstract into a helper that 
+                // adds C.TAGS.SELFTEST_TAG
                 const testField = store.state.fields[FEATURE_TEST_ROOT_FIELD_ID];
-                const referenceFieldId = await store.dispatch('addField', {
+                const referenceFieldId = await store.dispatch('addFieldActionAsync', {
                     name: 'testReferenceLiteralField',
-                    tags: [C.TAGS.LITERAL],
+                    tags: [C.TAGS.LITERAL, C.TAGS.SELFTEST_TAG],
                     literalConfig: {
                         type: Number,
                         value: 9
                     }
                 })
                 // todo rename to addFieldAndGetIDAsync so you know you have to await it...
-                const mathNodeId = await store.dispatch('addField', {
+                const mathNodeId = await store.dispatch('addFieldActionAsync', {
                     name: 'testMathNode',
-                    tags: [C.TAGS.MATH],
+                    tags: [C.TAGS.MATH_NODE, C.TAGS.SELFTEST_TAG],
                     parentFieldID: FEATURE_TEST_ROOT_FIELD_ID,
                     mathNodeConfig: new MathFieldConfig(1, Operations.ADD, new FieldReference(referenceFieldId))
                 });
@@ -762,13 +799,21 @@ async function bootSystemAsync() {
                     throw new Error("sandbox executorID not found for field: "+testField.id)
                 }
 
+                // we verify it starts as `uninitialized`
+                // and isn't computed until we access .result or pulse the sandbox clock
+                const resultBefore = store.state.fields[mathNodeId]._result;
+
                 // TODO: getter:
                 //const executor = store.getters.executorForSandboxID(testField.sandboxID);
                 const executor = store.state.executors[sandbox.executorID];
                 if(!executor){
+                    console.warn('available executor IDs',Object.keys(store.state.executors))
                     throw new Error("executor not found for sandboxID: "+sandbox.id+" executorID: "+sandbox.executorID)
                 }
+                // TODO: abstract to sandbox.pulse() or sandbox.step()
                 executor.pulse();
+
+                return store.state.fields[mathNodeId].result === 10 && resultBefore === 'uninitialized';
             }
         }
 
@@ -1163,14 +1208,10 @@ async function bootSystemAsync() {
         // },
     ];
 
-    // clean up an "TEST_TAG" tagged fields
-    store.dispatch('actionDeleteFieldsByTag', C.TAGS.TEST_TAG)
-
     const featureTestNames = featureTests.map(f => f.name);
 
     window.featureTests = featureTests;
     window.featureTestNames = featureTestNames;
-    window.systemStack = systemStack;
 
     // todo: safe mode
     // todo: parallel sandboxes
@@ -1194,6 +1235,12 @@ async function bootSystemAsync() {
         const rootField = store.state.fields[FEATURE_TEST_ROOT_FIELD_ID];
         const rootSandbox = store.state.sandboxes[rootField.sandboxID];
         const rootExecutor = rootSandbox.executor;
+        if(!rootExecutor){
+            throw new Error("rootExecutor not found for rootSandbox: "+rootSandbox.id)
+        }
+        if(!rootExecutor?.pulse){
+            throw new Error("rootExecutor.pulse not found for rootSandbox: "+rootSandbox.id)
+        }
         rootExecutor.pulse();
 
         requestAnimationFrame(mainLoop);
@@ -1213,13 +1260,14 @@ function runFeatureTests() {
         let featureField;
         // If the feature field doesn't exist, add it to the system stack
         // if (!existingFeatureField) {
-        let featureFieldID = await store.dispatch('addField', {
+        let featureFieldID = await store.dispatch('addFieldActionAsync', {
             //id: featureTest.name, // override the auto-assigned id
             name: featureTest.name,
             parentFieldID: FEATURE_TEST_ROOT_FIELD_ID,
             tags: [
                 // Fields tagged with test fields have a "passing" property
-                C.TAGS.FEATURE_TEST_FIELD
+                C.TAGS.TEST_TAG,
+                C.TAGS.SELFTEST_TAG,
             ],
         });
         // console.warn('RunFeatureTests: FeatureFieldID:', featureFieldID)

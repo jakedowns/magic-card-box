@@ -155,7 +155,13 @@
             <!-- debug view current fields -->
             <!-- Field Template -->
             <h1>Fields:</h1>
+            <pre>
+field view {{currentFieldView.length}}
+fields {{Object.keys(fields).length}}
+</pre>
+
             <div v-for="(fieldID, index) in currentFieldView"
+                class="field"
                 :class="{
                     'passing': fields[fieldID]?.passing === true,
                     'success': fields[fieldID]?.passing === true,
@@ -168,6 +174,8 @@
                     Field:{{fieldID}} ({{index}}): {{fields[fieldID].name}}<br/>
                     Tags({{fields[fieldID].tags.length}}): {{fields[fieldID].tags.join(", ")}}<br/>
                     <pre>Passing? {{fields[fieldID].passing}}</pre>
+                    <span v-if="fields[fieldID].error">Errors: {{fields[fieldID].error}}</span>
+                    <!-- Required/Optional? {{fields[fieldID].required ? 'Required' : 'Optional'}}<br/> -->
                     <br/>
                     <hr/>
                 </div>

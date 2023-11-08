@@ -123,29 +123,30 @@ class Card {
     }
 }
 
-class Feature extends Card {
-    constructor({name, position}){
-        super(arguments[0])
-        this.scenarios = []
-    }
-}
+/** @deprecated */
+// class Feature extends Card {
+//     constructor({name, position}){
+//         super(arguments[0])
+//         this.scenarios = []
+//     }
+// }
 
-class Scenario {
-    constructor(){
-        this.steps = []
-    }
+// class Scenario {
+//     constructor(){
+//         this.steps = []
+//     }
 
-    addStep(step){
-        this.steps.push(step)
-    }
-}
+//     addStep(step){
+//         this.steps.push(step)
+//     }
+// }
 
-class Step {
-    constructor({type, name}){
-        this.type = type
-        this.name = name
-    }
-}
+// class Step {
+//     constructor({type, name}){
+//         this.type = type
+//         this.name = name
+//     }
+// }
 
 const app = Vue.createApp({
     setup() {
@@ -558,6 +559,12 @@ const app = Vue.createApp({
 
         const addField = () => {
             store.commit('addField', {
+                name: newFieldName.value,
+            })
+        }
+        // addFieldAndWaitForIDAsync
+        const addFieldActionAsync = async() => {
+            return await store.dispatch('addFieldActionAsync',{
                 name: newFieldName.value,
             })
         }

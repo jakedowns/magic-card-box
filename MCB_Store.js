@@ -144,8 +144,11 @@ const DEFAULT_STATE = {
 
         TAGS: {
             // used for cleaning up all feature test fields by tag...
+            SELFTEST_TAG: 'selfTestTag',
+            LITERAL: 'literal',
+            
+            // fields with .passing property
             TEST_TAG: 'testTag',
-            FEATURE_TEST_FIELD: 'featureTestField',
 
             EXECUTABLE: 'executable',
             FLAGGABLE: 'flaggable',
@@ -171,10 +174,14 @@ const DEFAULT_STATE = {
             LOOP_FN: 'loopFN',
             SYNC_FN: 'syncFn',
             ASYNC_FN: 'asyncFn',
+
             // TODO:
             // debounced_fn
             // throttled_fn
 
+            // our math node
+            // MATH: 'math',
+            MATH_NODE: 'mathNode',
         },
 
         TIMER_TYPES: {
@@ -406,6 +413,11 @@ class Field {
     setLiteral(literalName, literalValue){
         this.literals[literalName] = literalValue;
     }
+
+    // TODO: maybe rename to step() or update() not sure
+    pulse(){
+        console.warn('depending on my tags, i should do work here');
+    }
     
 }
 
@@ -451,12 +463,16 @@ class Executor {
         }
         const rootField = store.state.fields[sb.rootFieldID];
         if(!rootField){
-            console.warn('Executor.pulse() no root field found for sandbox '+this.sandboxID)
+            console.error('Executor.pulse() no root field found for sandbox '+this.sandboxID)
             return;
         }
 
         // if the root field is tagged as an executable, we should throw an error
         // the root field of any sandbox should probably be some kind of executable type, no?
+
+        if(!rootField?.tags?.includes(C.TAGS.EXECUTABLE)){
+            throw new Error("root field is not executable")
+        }
 
         this.executeField(rootField);
     }
@@ -469,6 +485,12 @@ class Executor {
         // to each pulse
         // > but if that does become helpful, we can pass a context down here
         // > like a current stack for a rudimentary call stack for debugging, etc...
+
+        if(!field || !field?.pulse){
+            console.error('Executor.executeField() no field or field.pulse found', {field})
+            return;
+        }
+
         field.pulse();
     }
 }
@@ -1193,7 +1215,7 @@ function setupStore(){
 
             addExecutor(s, payload){
                 let exe = new Executor(payload);
-                s.executors[exe] = exe
+                s.executors[exe.id] = exe
                 s.lastExecutorCreatedID = exe.id
             },
             deleteExecutor(s, executorID){
@@ -1238,6 +1260,11 @@ function setupStore(){
                 Object.values(s.fields).forEach(field => {
                     if(field.tags.includes(tag)){
                         delete s.fields[field.id]
+
+                        // remove from all field_views
+                        Object.values(s.field_views).forEach(field_view => {
+                            field_view.splice(field_view.indexOf(field.id), 1)
+                        })
                     }
                 })
             },
@@ -1274,7 +1301,18 @@ function setupStore(){
                 console.warn('addExecutorAction',{lastExecutorCreatedID: context.state.lastExecutorCreatedID})
                 return context.state.lastExecutorCreatedID
             },
-            addField(context, payload){
+            addFieldActionAsync(context, payload){
+                if(payload?.tags){
+                    // if any tags are undefined or null,
+                    // throw an error
+                    payload.tags.forEach(tag => {
+                        if(!tag){
+                            console.error('addFieldActionAsync: tag is undefined or null', {payload})
+                            throw new Error("tag is undefined or null")
+                        }
+                    })
+                }
+
                 context.commit('addField', payload)
                 return context.state.lastFieldID
             },
@@ -1304,60 +1342,69 @@ function setupStore(){
             },
             loadStateFromLocalStorage() {
                 const state = localStorage.getItem('state');
-                if (state) this.replaceState({ ...DEFAULT_STATE, ...JSON.parse(state) });
+                // TODO: merge deep with default state ?
+                if (state) this.replaceState({ 
+                    ...DEFAULT_STATE, 
+                    ...JSON.parse(state),
+                    // don't let offline state override
+                    // our constants
+                    ...{CONST: DEFAULT_STATE.CONST}
+                });
     
-                if (!this.state.stack_order) { this.state.stack_order = []; }
+                // if (!this.state.stack_order) { this.state.stack_order = []; }
     
+                /** @deprecated */
                 // verify cards have .stackId defined
-                for (let id in this.state.stacks) {
-                    let s = this.state.stacks[id.toString()];
-                    // legacy fix, if s.cards is an array,
-                    // convert to an object keyed by card.id
-                    if (Array.isArray(s.cards)) {
-                        const cards = {};
-                        s.cards.forEach(c => cards[c.id] = c);
-                        s.cards = cards;
-                    }
-                    //s.cards.forEach(c => c.stackId = id.toString());
-                    s.card_order = s.card_order ?? s.cards.map(c => c.id);
-                }
+                // for (let id in this.state.stacks) {
+                //     let s = this.state.stacks[id.toString()];
+                //     // legacy fix, if s.cards is an array,
+                //     // convert to an object keyed by card.id
+                //     if (Array.isArray(s.cards)) {
+                //         const cards = {};
+                //         s.cards.forEach(c => cards[c.id] = c);
+                //         s.cards = cards;
+                //     }
+                //     //s.cards.forEach(c => c.stackId = id.toString());
+                //     s.card_order = s.card_order ?? s.cards.map(c => c.id);
+                // }
     
+                /** @deprecated */
                 // make sure each dehydrated stack object turns into a hydrated Stack class instance
-                for (let id in this.state.stacks) {
-                    this.state.stacks[id.toString()] = new Stack(this.state.stacks[id.toString()]);
-                    this.state.stacks[id.toString()].tags = this.state.stacks[id.toString()].tags ?? [];
+                // for (let id in this.state.stacks) {
+                //     this.state.stacks[id.toString()] = new Stack(this.state.stacks[id.toString()]);
+                //     this.state.stacks[id.toString()].tags = this.state.stacks[id.toString()].tags ?? [];
     
     
-                    // make sure each card has a .tags array
-                    for (let cardId in this.state.stacks[id.toString()].cards) {
-                        const card = this.state.stacks[id.toString()].cards[cardId];
-                        card.tags = card.tags ?? [];
-                    }
+                //     // make sure each card has a .tags array
+                //     for (let cardId in this.state.stacks[id.toString()].cards) {
+                //         const card = this.state.stacks[id.toString()].cards[cardId];
+                //         card.tags = card.tags ?? [];
+                //     }
     
-                    // make sure there's an entry in the .stack.card_order for all cards
-                    // (see if any cards are missing from the card_order array and add them)
-                    const cardIds = Object.keys(this.state.stacks[id.toString()].cards);
-                    cardIds.forEach(cardId => {
-                        if (!this.state.stacks[id.toString()].card_order.includes(cardId)) {
-                            this.state.stacks[id.toString()].card_order.push(cardId);
-                        }
-                    });
+                //     // make sure there's an entry in the .stack.card_order for all cards
+                //     // (see if any cards are missing from the card_order array and add them)
+                //     const cardIds = Object.keys(this.state.stacks[id.toString()].cards);
+                //     cardIds.forEach(cardId => {
+                //         if (!this.state.stacks[id.toString()].card_order.includes(cardId)) {
+                //             this.state.stacks[id.toString()].card_order.push(cardId);
+                //         }
+                //     });
     
-                    // make sure card positions match the .stack.card_order index
-                    let orphanedCardIds = [];
-                    this.state.stacks[id.toString()].card_order.forEach((cardId, index) => {
-                        // if the card isn't present, flag it for removal from the card_order array
-                        if (!this.state.stacks[id.toString()].cards[cardId]) {
-                            orphanedCardIds.push(cardId);
-                        }
-                        else {
-                            // set the card position to match the index in the card_order array
-                            this.state.stacks[id.toString()].cards[cardId].position = index;
-                        }
-                    });
-                    // clean up orphans
-                    this.state.stacks[id.toString()].card_order = this.state.stacks[id.toString()].card_order.filter(cardId => !orphanedCardIds.includes(cardId));
-                }
+                //     // make sure card positions match the .stack.card_order index
+                //     let orphanedCardIds = [];
+                //     this.state.stacks[id.toString()].card_order.forEach((cardId, index) => {
+                //         // if the card isn't present, flag it for removal from the card_order array
+                //         if (!this.state.stacks[id.toString()].cards[cardId]) {
+                //             orphanedCardIds.push(cardId);
+                //         }
+                //         else {
+                //             // set the card position to match the index in the card_order array
+                //             this.state.stacks[id.toString()].cards[cardId].position = index;
+                //         }
+                //     });
+                //     // clean up orphans
+                //     this.state.stacks[id.toString()].card_order = this.state.stacks[id.toString()].card_order.filter(cardId => !orphanedCardIds.includes(cardId));
+                // }
 
                 // hydrate Executors
                 for (let id in this.state.executors) {
@@ -1375,10 +1422,8 @@ function setupStore(){
                     //this.state.fields[id.toString()].tags = this.state.fields[id.toString()].tags ?? [];
                 }
 
-                
+                console.warn('DREAD we\'ll have to hyrdate Tag config classes too :/ ....');
 
-                
-    
                 if (!window.bootSystemAsync) {
                     console.warn('bootSystemAsync not found, skipping boot');
                     return;
