@@ -168,13 +168,15 @@
                     Field:{{fieldID}} ({{index}}): {{fields[fieldID].name}}<br/>
                     Tags({{fields[fieldID].tags.length}}): {{fields[fieldID].tags.join(", ")}}<br/>
                     <pre>Passing? {{fields[fieldID].passing}}</pre>
+                    <br/>
+                    <hr/>
                 </div>
                 <div v-else>
-                    Field Not Found {{fieldID}}
+                    <!-- Field Not Present {{fieldID}}
+                    TODO: delete orphaned fieldIDs in field_views -->
                 </div>
                 
-                <br/>
-                <hr/>
+                
             </div>
 
 

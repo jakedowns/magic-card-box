@@ -9,11 +9,25 @@ It's a fuzzy future, but we're having fun exploring the possibilities
 the bicycle for the mind just became the jetpack for the brain
 `
 
+/**
+ * 
+ */
 class FieldNotPresentError extends Error {
-    constructor(message, extras) {
-        super(message);
-        this.name = "FieldNotPresentError";
-        this.name += "\n extras: " + JSON.stringify(extras);
+    /**
+     * 
+     * @param string id 
+     * @param {context,source} extras 
+     */
+    constructor(id, extras) {
+        // isA(Promise, id)
+        if(typeof id?.then === 'function'){
+            throw new Error("id is a promise, not a string literal field id. \n Did you forget to await dispatch('addField')?")
+        }
+        // AWAIT ANY PROMISES IN EXTRAS!
+        super(id);
+        this.name = `FieldNotPresentError field ID: ${id}`;
+        this.name += "\n context: " + extras?.context;
+        this.name += "\n source: " + extras?.source;
     }
 }
 
@@ -87,6 +101,65 @@ class CompleteableField extends Field {
         } else {
             this.completed_at = status ? Date.now() : null;
         }
+    }
+
+}
+
+class MathFieldConfig { 
+    
+    // Left Hand Operand
+    leftHandOperand = null;
+    // Right Hand Operand
+    rightHandOperand = null;
+    // Operator
+    // TODO enum CONST.OPS
+    operator = null; 
+    // internal computed cache
+    _result = null;
+
+    // constructor(payload){
+    //     Object.assign(this, payload);
+    // }
+    
+    constructor(a, op, b){
+        this.leftHandOperand = a;
+        this.operator = op;
+        this.rightHandOperand = b;
+    }
+
+    // asynchronous
+    async awaitResult(){
+        return this._result ?? await this.computeAsync();
+    }
+
+    // synchronous
+    get Result(){
+        return this._result ?? this.compute();
+    }
+    
+    pulse(){
+        // if we already have a cached result, do nothing
+        // todo-just deregister from execution or use a dirty flag
+        if(this._result){
+            return;
+        }
+        this.compute();
+    }
+
+    // recompute the field
+    compute(){
+        this._result = this.computeAsync();
+        return this._result;
+    }
+
+    async computeAsync(){
+        console.error('MathField > computeAsync not implemented',{
+            leftHandOperand: this.leftHandOperand,
+            operator: this.operator,
+            rightHandOperand: this.rightHandOperand
+        })
+        this._result = -1;
+        return this._result;
     }
 
 }
@@ -439,10 +512,10 @@ async function bootSystem() {
         {
             name: 'the user can assign tags to a field and they will be saved',
             required: true,
-            test(i){
+            async test(i){
                 const name = 'test field name';
                 const tags = [C.TAGS.TEST_TAG];
-                const id = store.dispatch('addField', {
+                const id = await store.dispatch('addField', {
                     name,
                     tags
                 });
@@ -485,10 +558,10 @@ async function bootSystem() {
         },
         {
             name: 'fields can have parent field ids specified, when they are, the parent\'s childFieldIDs are updated',
-            test(i){
+            async test(i){
                 const name = 'test field name';
                 const tags = [C.TAGS.TEST_TAG];
-                const id = store.dispatch('addField', {
+                const id = await store.dispatch('addField', {
                     name,
                     tags
                 });
@@ -507,18 +580,21 @@ async function bootSystem() {
         // BUT THERE WILL ALSO BE "VIRTUAL" PARENTS AND 'VIRTUAL" CHILDREN THAT ARE JUST REFERENCES TO ARBITRARY FIELDS...
         {
             name: 'fields can be virtually related to any other fields, even themselves, multiple times in a given FieldView',
-            test(i){
+            async test(i){
                 const name = 'testRootField_001';
                 const tags = [C.TAGS.TEST_TAG];
-                const rootFieldID = store.dispatch('addField', {
+                const rootFieldID = await store.dispatch('addField', {
                     id: name, // override auto-assigned id for fixed test id
                     name,
                     tags
                 });
                 // fields[name] would work here too
                 const rootField = store.state.fields[rootFieldID];
+                if(typeof rootFieldID?.then === 'function'){
+                    throw new Error("rootFieldID is a promise, not a string literal field id. \n Did you forget to await dispatch('addField')?")
+                }
                 if(!rootField){
-                    throw new Error("rootField does not exist")
+                    throw new Error("rootField does not exist RootFieldID: "+rootFieldID)
                 }
                 // use our testing DSL to simplify this test
                 // we use this to make our tests more readable,
@@ -1046,7 +1122,7 @@ function runFeatureTests() {
         } catch (e) {
             if (!featureTest.required) {
                 // continue
-                console.error('unrequired feature test failed "' + featureTest.name + '"');
+                console.error('UN-Required (Optional) FeatureTest Failed:\n "' + featureTest.name + '"');
                 console.error(e);
                 // attach error for output
                 // card.error = e;

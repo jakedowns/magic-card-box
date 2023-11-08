@@ -75,6 +75,11 @@ const DEFAULT_STATE = {
     // ---
     // fields (our flow fields)
     fields: {},
+
+    // a FieldView is like a cursor into a field
+    // it's a way to navigate and parse complex fields
+    // some of which may be very large and have too many subfields to view at once or even in a reasonable amount of time
+    // advanced fields in the future will use parallel workers and predetermined "dimensional boundaries" for splitting up the work
     field_views: {
         default_order: [], // an ordered list of field ids
     }, // our map of arrays of ordered fields
@@ -1222,7 +1227,7 @@ function setupStore(){
                     return
                 }
                 delete s.fields[fieldID]
-                console.warn('todo: delete the field id from all field_order views');
+                console.warn('todo: delete the field id from all field_views');
             },
             mutDeleteFieldsByTag(s, tag){
                 // TODO: add suppressable confirmation at the action layer
