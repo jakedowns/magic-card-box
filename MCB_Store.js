@@ -481,10 +481,6 @@ class Sandbox {
     rootFieldIDs = [];
     constructor({id}){
         this.id = id ?? 'sandbox_'+Date.now();
-        const exeID = store.dispatch('addExecutorAction',{
-            sandboxID: this.id
-        })
-        this.executorID = exeID;
         // TODO: move some of this to executor class...
         this.programCounter = 0;
         this.steps = [];
@@ -493,6 +489,13 @@ class Sandbox {
         // final
         this.output = {};
         this.fields = [];
+    }
+
+    async generateExecutor(){
+        const exeID = await store.dispatch('addExecutorAction',{
+            sandboxID: this.id
+        })
+        this.executorID = exeID;
     }
 
     swapSteps(step1, step2){
@@ -1247,6 +1250,14 @@ function setupStore(){
             }
         },
         actions: {
+            async addSandboxAction(context, payload){
+                context.commit('addSandbox', payload)
+                const id = context.state.lastSandboxID
+                const sb = context.state.sandboxes[id]
+                // wait for the Executor to be assigned
+                await sb.generateExecutor();
+                return id
+            },
             actionDeleteFieldsByTag(context, tag){
                 context.commit('mutDeleteFieldsByTag',tag)
             },
@@ -1373,7 +1384,7 @@ function setupStore(){
                     return;
                 }
                 // boot system
-                window.bootSystem();
+                window.bootSystemAsync();
                 // hide loading div
                 document.querySelector('.loading').style.display = 'none';
                 // show #app div

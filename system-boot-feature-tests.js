@@ -20,7 +20,7 @@ class FieldNotPresentError extends Error {
      */
     constructor(id, extras) {
         // isA(Promise, id)
-        if(typeof id?.then === 'function'){
+        if (typeof id?.then === 'function') {
             throw new Error("id is a promise, not a string literal field id. \n Did you forget to await dispatch('addField')?")
         }
         // AWAIT ANY PROMISES IN EXTRAS!
@@ -28,6 +28,35 @@ class FieldNotPresentError extends Error {
         this.name = `FieldNotPresentError field ID: ${id}`;
         this.name += "\n context: " + extras?.context;
         this.name += "\n source: " + extras?.source;
+    }
+}
+
+// literally just a string id
+// but we make it a class so we can instanceof check it 
+class FieldPointer {
+    id = null;
+    constructor(id){
+        this.id = id;
+    }
+}
+
+// literally just a string id
+// but we make it a class so we can instanceof check it 
+class FieldReference {
+    id = null;
+    constructor(id){
+        this.id = id;
+    }
+
+    // get the referenced field
+    get field(){
+        if(!store.state.fields[this.id]){
+            throw new FieldNotPresentError(this.id,{
+                context:'FieldReference.field',
+                source:'FieldReference'
+            })
+        }
+        return store.state.fields[this.id]
     }
 }
 
@@ -105,63 +134,140 @@ class CompleteableField extends Field {
 
 }
 
-class MathFieldConfig { 
-    
-    // Left Hand Operand
-    leftHandOperand = null;
-    // Right Hand Operand
-    rightHandOperand = null;
-    // Operator
-    // TODO enum CONST.OPS
-    operator = null; 
-    // internal computed cache
-    _result = null;
+const Operations = {
+    ADD: '+',
+    SUBTRACT: '-',
+    MULTIPLY: '*',
+    DIVIDE: '/',
+    // Further operations can be added here.
+};
 
-    // constructor(payload){
-    //     Object.assign(this, payload);
-    // }
-    
-    constructor(a, op, b){
-        this.leftHandOperand = a;
-        this.operator = op;
-        this.rightHandOperand = b;
+class MathFieldConfig {
+
+    // since our operands can be literals or references to OTHER Fields that may need to be computed,
+    // we need to unwrap the literal values when
+    // we're ready to compute the result
+    // this is lazy evaluation
+    // and eager evaluation can be triggered by calling recompute() earlier than the first consumer of the result
+    leftHandUnwrapped = null
+    rightHandUnwrapped = null
+    _result = 'uninitialized'
+
+    constructor(leftOperand, operator, rightOperand) {
+        this.setOperands(leftOperand, rightOperand);
+        this.setOperator(operator);
+        this._result = null;
     }
 
-    // asynchronous
-    async awaitResult(){
+    // ok, we should probably migrate to typescript
+    // this manual type checking is getting out of hand
+    setOperands(left, right) {
+        // NOTE:
+        // these values can be literal numbers
+        // or they can be references to other fields
+        if (
+            !(left instanceof FieldReference) 
+            && !(typeof left === 'number')
+        ) {
+            throw new Error('Unsupported left operand type. '+JSON.stringify({
+                type:typeof left,
+                left
+            }));
+            this.leftHandOperand = left;
+        }
+
+
+        if (
+            !(right instanceof FieldReference) 
+            && !(typeof right === 'number')
+        ) {
+            throw new Error('Unsupported right operand type. '+JSON.stringify({
+                type:typeof right,
+                right
+            }));
+        }else{
+            this.rightHandOperand = right;
+        }
+    }
+
+    setOperator(op) {
+        if (Object.values(Operations).includes(op)) {
+            this.operator = op;
+        } else {
+            throw new Error('Unsupported operation.');
+        }
+    }
+
+    // force a recompute
+    clearResult(){
+        this._result = 'uninitialized'; // TODO: make a CONST "type"
+    }
+
+    // NOTE: we can configure this Field to either
+    // - evaluate immediately
+    // - evaluate continiously or periodically
+    // - only when Executor pulses' it's parent Field
+    // - only when result is accessed for the first time
+    get result() {
+        // Only compute if _result is null to cache the result
+        if (this._result === 'uninitialized') {
+            this._result = this.compute();
+        }
+        return this._result;
+    }
+
+    maybeUnwrapOperand(operand) {
+        // if the operand is a Field and not a literal Number, check for a result property
+        // if it exists, use that value, otherwise use the Field itself
+        // if it's a literal, just return the literal
+        // if (typeof operand === 'number') {
+        //     return operand;
+        // }
+        if (operand?.result) {
+            return operand.result;
+        }
+        return operand;
+    }
+
+    compute() {
+        this.leftHandUnwrapped = this.maybeUnwrapOperand(this.leftHandOperand);
+        this.rightHandUnwrapped = this.maybeUnwrapOperand(this.rightHandOperand);   
+
+        switch (this.operator) {
+            case Operations.ADD:
+                return this.leftHandOperand + this.rightHandOperand;
+            case Operations.SUBTRACT:
+                return this.leftHandOperand - this.rightHandOperand;
+            case Operations.MULTIPLY:
+                return this.leftHandOperand * this.rightHandOperand;
+            case Operations.DIVIDE:
+                // Additional check to prevent division by zero
+                if (this.rightHandOperand === 0) {
+                    throw new Error('Division by zero is not allowed.');
+                }
+                return this.leftHandOperand / this.rightHandOperand;
+            default:
+                throw new Error('Operation not supported.');
+        }
+    }
+
+    // Recompute and invalidate the cache if needed
+    recompute() {
+        this._result = null;
+        return this.compute();
+    }
+
+    // Async computation can be useful if the calculations are expected to be heavy or time-consuming
+    async computeAsync() {
+        // Simulate asynchronous operation with a timeout or potentially more complex logic
+        await new Promise(resolve => setTimeout(resolve, 0));
+        return this.compute();
+    }
+
+    // Asynchronous result fetching with caching
+    async awaitResult() {
         return this._result ?? await this.computeAsync();
     }
-
-    // synchronous
-    get Result(){
-        return this._result ?? this.compute();
-    }
-    
-    pulse(){
-        // if we already have a cached result, do nothing
-        // todo-just deregister from execution or use a dirty flag
-        if(this._result){
-            return;
-        }
-        this.compute();
-    }
-
-    // recompute the field
-    compute(){
-        this._result = this.computeAsync();
-        return this._result;
-    }
-
-    async computeAsync(){
-        console.error('MathField > computeAsync not implemented',{
-            leftHandOperand: this.leftHandOperand,
-            operator: this.operator,
-            rightHandOperand: this.rightHandOperand
-        })
-        this._result = -1;
-        return this._result;
-    }
-
 }
 
 class TodoListConfig { }
@@ -285,7 +391,7 @@ const FEATURE_TEST_SUBFIELD_CONFIGS = {
     },
 }
 
-async function bootSystem() {
+async function bootSystemAsync() {
     console.warn(MISSION_STATEMENT)
 
     // wait for the store.state.CONST.TYPES to be populated
@@ -314,7 +420,7 @@ async function bootSystem() {
         FT_SF_SUN_POSITION: [C.TAGS.SUN_POSITION],
         FT_SF_MOON_POSITION: [C.TAGS.MOON_POSITION],
         FT_SF_USER_LOCATION: [C.TAGS.USER_LOCATION],
-    
+
         FT_SF_LOOP_EXAMPLE: [C.TAGS.LOOP_EXAMPLE],
         FT_SF_SYNCHROUS_EXAMPLE: [C.TAGS.SYNCHRONOUS_EXAMPLE],
         FT_SF_ASYNC_EXAMPLE: [C.TAGS.ASYNCHRONOUS_EXAMPLE],
@@ -366,10 +472,10 @@ async function bootSystem() {
     // 3. maybe we give the option to the user to migrate fields or subfields when they try to delete a field
 
 
-    //store.commit('deleteSandbox', FEATURE_TEST_SANDBOX_ID) // delete if exists
-    store.commit('addSandbox', {
-        id: FEATURE_TEST_SANDBOX_ID
-    }) // this would technically overwrite it anyway
+    await store.dispatch('addSandboxAction', {
+        name: 'Feature Test Sandbox',
+        id: FEATURE_TEST_SANDBOX_ID,
+    })
     const featureTestSandbox = store.state.sandboxes[FEATURE_TEST_SANDBOX_ID];
 
     // delete any "FEATURE_TEST_ROOT_FIELD_ID" before recreating our test root field to prevent it from duplicating on each boot
@@ -401,7 +507,7 @@ async function bootSystem() {
     for (const [key, value] of Object.entries(FEATURE_TEST_SUBFIELD_IDS)) {
 
         const tagsArray = [
-            ...FEATURE_TEST_SUBFIELD_TAGS[key], 
+            ...FEATURE_TEST_SUBFIELD_TAGS[key],
             ...[
                 C.TAGS.TEST_TAG,
                 // TODO: tags that can decompose into a group of tags
@@ -479,8 +585,8 @@ async function bootSystem() {
             test(i) {
                 const field = store.state.fields[FEATURE_TEST_ROOT_FIELD_ID];
                 const childFieldIDs = field.childFieldIDs;
-                if(!childFieldIDs){
-                    console.error("field has no childFieldIDs prop?", {field})
+                if (!childFieldIDs) {
+                    console.error("field has no childFieldIDs prop?", { field })
                     throw new Error("field has no childFieldIDs prop?")
                 }
                 return childFieldIDs.length === Object.keys(FEATURE_TEST_SUBFIELD_IDS).length;
@@ -488,21 +594,21 @@ async function bootSystem() {
         },
         {
             name: 'the user can add a new field with a custom name',
-            async test(i){
+            async test(i) {
                 const name = 'test field name';
                 const id = await store.dispatch('addField', {
                     name,
                     tags: [C.TAGS.TEST_TAG] // for cleanup after self-test
                 });
-                console.warn('bootSystem FeatureTest '+i.name,{
+                console.warn('bootSystem FeatureTest ' + i.name, {
                     id,
                     lastFieldId: store.state.lastFieldId,
                 })
                 const field = store.state.fields[id];
-                if(!field){
+                if (!field) {
                     throw new FieldNotPresentError(id)
                 }
-                if(field.name !== name){
+                if (field.name !== name) {
                     throw new Error("field name does not match")
                 }
                 return true;
@@ -512,7 +618,7 @@ async function bootSystem() {
         {
             name: 'the user can assign tags to a field and they will be saved',
             required: true,
-            async test(i){
+            async test(i) {
                 const name = 'test field name';
                 const tags = [C.TAGS.TEST_TAG];
                 const id = await store.dispatch('addField', {
@@ -520,13 +626,13 @@ async function bootSystem() {
                     tags
                 });
                 const field = store.state.fields[id];
-                if(!field){
+                if (!field) {
                     throw new FieldNotPresentError(id, {
-                        context: i.name, 
+                        context: i.name,
                         source: i.test.toString()
                     })
                 }
-                if(field.tags.length !== tags.length){
+                if (field.tags.length !== tags.length) {
                     throw new Error("field tags length does not match")
                 }
                 return true;
@@ -534,31 +640,31 @@ async function bootSystem() {
         },
         {
             name: 'local changes are reflected to the server and made available from other Sandbox clients (RemoteFieldView)',
-            test(i){
+            test(i) {
                 return -1;
             }
         },
         {
             name: 'clients can send messages to all connected clients',
-            test(i){
+            test(i) {
                 return -1;
             }
         },
         {
             name: 'clients can send messages to specific connected clients',
-            test(i){
+            test(i) {
                 return -1;
             }
         },
         {
             name: 'clients can send encrypted messages to self across clients via a private channel',
-            test(i){
+            test(i) {
 
             }
         },
         {
             name: 'fields can have parent field ids specified, when they are, the parent\'s childFieldIDs are updated',
-            async test(i){
+            async test(i) {
                 const name = 'test field name';
                 const tags = [C.TAGS.TEST_TAG];
                 const id = await store.dispatch('addField', {
@@ -566,10 +672,10 @@ async function bootSystem() {
                     tags
                 });
                 const field = store.state.fields[id];
-                if(!field){
+                if (!field) {
                     throw new FieldNotPresentError(id)
                 }
-                if(field.tags.length !== tags.length){
+                if (field.tags.length !== tags.length) {
                     throw new Error("field tags length does not match")
                 }
                 return true;
@@ -580,7 +686,7 @@ async function bootSystem() {
         // BUT THERE WILL ALSO BE "VIRTUAL" PARENTS AND 'VIRTUAL" CHILDREN THAT ARE JUST REFERENCES TO ARBITRARY FIELDS...
         {
             name: 'fields can be virtually related to any other fields, even themselves, multiple times in a given FieldView',
-            async test(i){
+            async test(i) {
                 const name = 'testRootField_001';
                 const tags = [C.TAGS.TEST_TAG];
                 const rootFieldID = await store.dispatch('addField', {
@@ -590,11 +696,11 @@ async function bootSystem() {
                 });
                 // fields[name] would work here too
                 const rootField = store.state.fields[rootFieldID];
-                if(typeof rootFieldID?.then === 'function'){
+                if (typeof rootFieldID?.then === 'function') {
                     throw new Error("rootFieldID is a promise, not a string literal field id. \n Did you forget to await dispatch('addField')?")
                 }
-                if(!rootField){
-                    throw new Error("rootField does not exist RootFieldID: "+rootFieldID)
+                if (!rootField) {
+                    throw new Error("rootField does not exist RootFieldID: " + rootFieldID)
                 }
                 // use our testing DSL to simplify this test
                 // we use this to make our tests more readable,
@@ -622,7 +728,7 @@ async function bootSystem() {
         },
         {
             name: 'Math fields can compute basic math operations',
-            test(i){
+            async test(i) {
                 // given a fresh field
                 // when we add a math field
                 // and we configure it to add 1 + {the value of another field}
@@ -631,7 +737,7 @@ async function bootSystem() {
 
                 // given a fresh field
                 const testField = store.state.fields[FEATURE_TEST_ROOT_FIELD_ID];
-                const referenceFieldId = store.dispatch('addField', {
+                const referenceFieldId = await store.dispatch('addField', {
                     name: 'testReferenceLiteralField',
                     tags: [C.TAGS.LITERAL],
                     literalConfig: {
@@ -639,18 +745,30 @@ async function bootSystem() {
                         value: 9
                     }
                 })
-                const mathNodeId = store.dispatch('addField', {
+                // todo rename to addFieldAndGetIDAsync so you know you have to await it...
+                const mathNodeId = await store.dispatch('addField', {
                     name: 'testMathNode',
                     tags: [C.TAGS.MATH],
                     parentFieldID: FEATURE_TEST_ROOT_FIELD_ID,
-                    mathNodeConfig: new MathFieldConfig({
-
-                    })
+                    mathNodeConfig: new MathFieldConfig(1, Operations.ADD, new FieldReference(referenceFieldId))
                 });
                 // pulse the Sandbox.Executor one pulse and check the result
                 const sandbox = store.state.sandboxes[testField.sandboxID];
+                
+                if(!sandbox){
+                    throw new Error("sandbox not found for field: "+testField.id)
+                }
+                if(!sandbox?.executorID){
+                    throw new Error("sandbox executorID not found for field: "+testField.id)
+                }
+
+                // TODO: getter:
                 //const executor = store.getters.executorForSandboxID(testField.sandboxID);
                 const executor = store.state.executors[sandbox.executorID];
+                if(!executor){
+                    throw new Error("executor not found for sandboxID: "+sandbox.id+" executorID: "+sandbox.executorID)
+                }
+                executor.pulse();
             }
         }
 
@@ -1095,17 +1213,17 @@ function runFeatureTests() {
         let featureField;
         // If the feature field doesn't exist, add it to the system stack
         // if (!existingFeatureField) {
-            let featureFieldID = await store.dispatch('addField', {
-                //id: featureTest.name, // override the auto-assigned id
-                name: featureTest.name,
-                parentFieldID: FEATURE_TEST_ROOT_FIELD_ID,
-                tags: [
-                    // Fields tagged with test fields have a "passing" property
-                    C.TAGS.FEATURE_TEST_FIELD
-                ],
-            });
-            console.warn('FeatureFieldID:', featureFieldID)
-            featureField = store.state.fields[featureFieldID];
+        let featureFieldID = await store.dispatch('addField', {
+            //id: featureTest.name, // override the auto-assigned id
+            name: featureTest.name,
+            parentFieldID: FEATURE_TEST_ROOT_FIELD_ID,
+            tags: [
+                // Fields tagged with test fields have a "passing" property
+                C.TAGS.FEATURE_TEST_FIELD
+            ],
+        });
+        // console.warn('RunFeatureTests: FeatureFieldID:', featureFieldID)
+        featureField = store.state.fields[featureFieldID];
         // }
         featureField = featureField ?? existingFeatureField;
         if (!featureField) {
@@ -1130,13 +1248,13 @@ function runFeatureTests() {
             } else {
                 console.error('=== REQUIRED feature test failed "' + featureTest.name + '"');
                 // rethrow
-                console.error('THE ERROR:',e);
+                console.error('THE ERROR:', e);
                 throw e;
             }
         }
 
         // if passing === -1, it's pending
-        store.commit('setFieldPassingStatus', { fieldID:featureField.id, passing })
+        store.commit('setFieldPassingStatus', { fieldID: featureField.id, passing })
 
     });
 }
